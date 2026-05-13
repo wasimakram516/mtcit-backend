@@ -8,7 +8,7 @@ exports.protect = (req, res, next) => {
     const token = req.headers.authorization?.split(" ")[1];
 
     if (!token) {
-      return errorResponse(res, 401, "Unauthorized - No token provided");
+      return response(res, 401, "Unauthorized - No token provided");
     }
 
     // ✅ Verify token
@@ -24,7 +24,7 @@ exports.protect = (req, res, next) => {
 // ✅ Admin-Only Access Middleware
 exports.adminOnly = (req, res, next) => {
   if (!req.user || req.user.role !== "admin") {
-    return errorResponse(res, 403, "Forbidden - Admins only");
+    return response(res, 403, "Forbidden - Admins only");
   }
   
   next();

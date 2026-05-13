@@ -112,6 +112,7 @@ const socketHandler = (io) => {
                   category: media.category,
                   subcategory: media.subcategory,
                   media: media.media[language || "en"],
+                  layers: media.layers || [],
                   pinpoint: media.pinpoint,
                 });
               } else {

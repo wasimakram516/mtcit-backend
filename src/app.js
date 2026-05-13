@@ -2,18 +2,22 @@ const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const connectDB = require("./config/db");
+const env = require("./config/env");
 
 const authRoutes = require("./routes/authRoutes");
-const displayMediaRoutes = require("./routes/displayMediaRoutes"); 
+const displayMediaRoutes = require("./routes/displayMediaRoutes");
+const backgroundRoutes = require("./routes/backgroundRoutes");
 const errorHandler = require("./middlewares/errorHandler");
 const seedAdmin = require("./seeder/adminSeeder");
 
 const app = express();
 
+const allowedOrigin = env.client.url;
+
 // Middleware
 app.use(
   cors({
-    origin: "*",
+    origin: allowedOrigin,
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: [
@@ -41,7 +45,8 @@ initializeApp();
 
 // ✅ Routes
 app.use("/api/auth", authRoutes);
-app.use("/api/display-media", displayMediaRoutes); // ✅ your new media system
+app.use("/api/display-media", displayMediaRoutes);
+app.use("/api/backgrounds", backgroundRoutes);
 
 // Health Check
 app.get("/", (req, res) => {

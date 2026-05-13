@@ -22,6 +22,8 @@ router.post(
   upload.fields([
     { name: "mediaAr", maxCount: 1 },
     { name: "mediaEn", maxCount: 1 },
+    { name: "mediaLayers", maxCount: 20 },
+    { name: "mediaLayersAr", maxCount: 20 },
     { name: "pinpoint", maxCount: 1 },
   ]),
   createDisplayMedia
@@ -34,6 +36,8 @@ router.put(
   upload.fields([
     { name: "mediaAr", maxCount: 1 },
     { name: "mediaEn", maxCount: 1 },
+    { name: "mediaLayers", maxCount: 20 },
+    { name: "mediaLayersAr", maxCount: 20 },
     { name: "pinpoint", maxCount: 1 },
   ]),
   updateDisplayMedia

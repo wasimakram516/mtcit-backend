@@ -6,6 +6,80 @@ const asyncHandler = require("../middlewares/asyncHandler");
 
 let io;
 
+const parseJsonArray = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const normalizeNumber = (value, fallback = 0) => {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : fallback;
+};
+
+const buildLayerRecord = async (layerMeta = {}, uploadedFileEn, uploadedFileAr) => {
+  let urlEn = layerMeta.existingUrlEn || layerMeta.existingUrl || "";
+  let typeEn = layerMeta.typeEn || layerMeta.type || "image";
+  let urlAr = layerMeta.existingUrlAr || "";
+  let typeAr = layerMeta.typeAr || "image";
+
+  if (uploadedFileEn) {
+    const uploaded = await uploadToCloudinary(
+      uploadedFileEn.buffer,
+      uploadedFileEn.mimetype
+    );
+    urlEn = uploaded.secure_url;
+    typeEn = uploaded.resource_type;
+  }
+
+  if (uploadedFileAr) {
+    const uploaded = await uploadToCloudinary(
+      uploadedFileAr.buffer,
+      uploadedFileAr.mimetype
+    );
+    urlAr = uploaded.secure_url;
+    typeAr = uploaded.resource_type;
+  }
+
+  if (!urlEn && !urlAr) return null;
+
+  return {
+    fileEn: {
+      type: typeEn,
+      url: urlEn,
+    },
+    fileAr: {
+      type: typeAr,
+      url: urlAr,
+    },
+    // Legacy support
+    file: {
+      type: typeEn,
+      url: urlEn,
+    },
+    title: layerMeta.title || "",
+    description: layerMeta.description || "",
+    position: {
+      x: normalizeNumber(layerMeta.position?.x, 0),
+      y: normalizeNumber(layerMeta.position?.y, 0),
+    },
+    size: {
+      width: normalizeNumber(layerMeta.size?.width, 100),
+      height: normalizeNumber(layerMeta.size?.height, 100),
+    },
+    opacity: normalizeNumber(layerMeta.opacity, 1),
+    rotation: normalizeNumber(layerMeta.rotation, 0),
+    zIndex: normalizeNumber(layerMeta.zIndex, 0),
+    isActive: layerMeta.isActive !== undefined ? Boolean(layerMeta.isActive) : true,
+  };
+};
+
 // ✅ Set WebSocket instance
 exports.setSocketIo = (socketIoInstance) => {
   io = socketIoInstance;
@@ -43,11 +117,14 @@ exports.getMediaById = asyncHandler(async (req, res) => {
 // ✅ Create new display media
 exports.createDisplayMedia = asyncHandler(async (req, res) => {
   const { category, subcategory, pinpointX, pinpointY } = req.body;
+  const layerMetaList = parseJsonArray(req.body.layers);
+  const uploadedLayerFiles = req.files?.mediaLayers || [];
 
   const mediaObj = {
     category,
     subcategory,
     media: {},
+    layers: [],
   };
 
   // Upload English media if provided
@@ -86,6 +163,39 @@ exports.createDisplayMedia = asyncHandler(async (req, res) => {
     };
   }
 
+  if (layerMetaList.length > 0) {
+    const uploadedLayerFilesEn = req.files?.mediaLayers || [];
+    const uploadedLayerFilesAr = req.files?.mediaLayersAr || [];
+
+    for (const layerMeta of layerMetaList) {
+      const fileIndexEnValue = layerMeta.fileIndexEn ?? layerMeta.fileIndex;
+      const fileIndexArValue = layerMeta.fileIndexAr;
+
+      const fileIndexEn = (fileIndexEnValue !== null && fileIndexEnValue !== undefined && fileIndexEnValue !== "") 
+        ? Number(fileIndexEnValue) 
+        : null;
+      
+      const fileIndexAr = (fileIndexArValue !== null && fileIndexArValue !== undefined && fileIndexArValue !== "") 
+        ? Number(fileIndexArValue) 
+        : null;
+
+      const uploadedFileEn =
+        fileIndexEn !== null && Number.isInteger(fileIndexEn) && uploadedLayerFilesEn[fileIndexEn]
+          ? uploadedLayerFilesEn[fileIndexEn]
+          : null;
+
+      const uploadedFileAr =
+        fileIndexAr !== null && Number.isInteger(fileIndexAr) && uploadedLayerFilesAr[fileIndexAr]
+          ? uploadedLayerFilesAr[fileIndexAr]
+          : null;
+
+      const layerRecord = await buildLayerRecord(layerMeta, uploadedFileEn, uploadedFileAr);
+      if (layerRecord) {
+        mediaObj.layers.push(layerRecord);
+      }
+    }
+  }
+
   const media = await DisplayMedia.create(mediaObj);
   await emitMediaUpdate();
   return response(res, 201, "Media created successfully.", media);
@@ -97,6 +207,8 @@ exports.updateDisplayMedia = asyncHandler(async (req, res) => {
   if (!item) return response(res, 404, "Media item not found.");
 
   const { category, subcategory, pinpointX, pinpointY } = req.body;
+  const layerMetaList = req.body.layers ? parseJsonArray(req.body.layers) : null;
+  const uploadedLayerFiles = req.files?.mediaLayers || [];
 
   if (category) item.category = category;
   if (subcategory) item.subcategory = subcategory;
@@ -162,6 +274,62 @@ exports.updateDisplayMedia = asyncHandler(async (req, res) => {
       if (pinpointX !== undefined) item.pinpoint.position.x = Number(pinpointX);
       if (pinpointY !== undefined) item.pinpoint.position.y = Number(pinpointY);
     }
+  }
+
+  if (layerMetaList) {
+    const nextLayers = [];
+    const uploadedLayerFilesEn = req.files?.mediaLayers || [];
+    const uploadedLayerFilesAr = req.files?.mediaLayersAr || [];
+
+    for (const layerMeta of layerMetaList) {
+      const fileIndexEnValue = layerMeta.fileIndexEn ?? layerMeta.fileIndex;
+      const fileIndexArValue = layerMeta.fileIndexAr;
+
+      const fileIndexEn = (fileIndexEnValue !== null && fileIndexEnValue !== undefined && fileIndexEnValue !== "") 
+        ? Number(fileIndexEnValue) 
+        : null;
+
+      const fileIndexAr = (fileIndexArValue !== null && fileIndexArValue !== undefined && fileIndexArValue !== "") 
+        ? Number(fileIndexArValue) 
+        : null;
+
+      const uploadedFileEn =
+        fileIndexEn !== null && Number.isInteger(fileIndexEn) && uploadedLayerFilesEn[fileIndexEn]
+          ? uploadedLayerFilesEn[fileIndexEn]
+          : null;
+
+      const uploadedFileAr =
+        fileIndexAr !== null && Number.isInteger(fileIndexAr) && uploadedLayerFilesAr[fileIndexAr]
+          ? uploadedLayerFilesAr[fileIndexAr]
+          : null;
+
+      const layerRecord = await buildLayerRecord(layerMeta, uploadedFileEn, uploadedFileAr);
+      if (layerRecord) {
+        nextLayers.push(layerRecord);
+      }
+    }
+
+    // Deletion logic for Cloudinary
+    const nextUrls = new Set();
+    nextLayers.forEach(l => {
+      if (l.fileEn?.url) nextUrls.add(l.fileEn.url);
+      if (l.fileAr?.url) nextUrls.add(l.fileAr.url);
+    });
+
+    const prevUrls = [];
+    (item.layers || []).forEach(l => {
+      if (l.fileEn?.url) prevUrls.push(l.fileEn.url);
+      if (l.fileAr?.url) prevUrls.push(l.fileAr.url);
+      if (l.file?.url) prevUrls.push(l.file.url);
+    });
+
+    for (const url of prevUrls) {
+      if (url && !nextUrls.has(url)) {
+        await deleteImage(url);
+      }
+    }
+
+    item.layers = nextLayers;
   }
 
   await item.save();

@@ -56,7 +56,7 @@ exports.login = asyncHandler(async (req, res) => {
   res.cookie("refreshToken", refreshToken, {
     httpOnly: true,
     secure: env.node_env === "production",
-    sameSite: "Strict",
+    sameSite: env.node_env === "production" ? "none" : "lax",
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   });
 
@@ -94,7 +94,11 @@ exports.refreshToken = asyncHandler(async (req, res) => {
 
 // ✅ Logout User (Clears Refresh Token Cookie)
 exports.logout = asyncHandler(async (req, res) => {
-  res.clearCookie("refreshToken", { httpOnly: true, sameSite: "Strict" });
+  res.clearCookie("refreshToken", {
+    httpOnly: true,
+    sameSite: env.node_env === "production" ? "none" : "lax",
+    secure: env.node_env === "production",
+  });
 
   return response(res, 200, "Logged out successfully");
 });
