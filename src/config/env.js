@@ -10,6 +10,8 @@ const validateEnv = (key) => {
   return process.env[key];
 };
 
+const getEnv = (key, fallback = "") => process.env[key] || fallback;
+
 // Centralized Environment Configuration
 const env = {
   database: {
@@ -25,13 +27,15 @@ const env = {
   },
   server: {
     port: validateEnv("PORT"),
+    nodeEnv: validateEnv("NODE_ENV"),
   },
   masterKey: validateEnv("MASTER_KEY"),
-  cloudinary: {
-    cloudName: validateEnv("CLOUDINARY_CLOUD_NAME"),
-    apiKey: validateEnv("CLOUDINARY_API_KEY"),
-    apiSecret: validateEnv("CLOUDINARY_API_SECRET"),
-    folder: validateEnv("CLOUDINARY_FOLDER"),
+  aws: {
+    region: validateEnv("AWS_REGION"),
+    accessKeyId: validateEnv("AWS_ACCESS_KEY_ID"),
+    secretAccessKey: validateEnv("AWS_SECRET_ACCESS_KEY"),
+    s3Bucket: validateEnv("S3_BUCKET"),
+    cloudfrontUrl: getEnv("CLOUDFRONT_URL"),
   },
 };
 

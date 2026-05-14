@@ -1,0 +1,52 @@
+name: Deploy MTCIT Backend
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy-prod:
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, backend, production, dr]
+    environment: Production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare production directory
+        run: |
+          sudo mkdir -p /var/www/wwds-events/mtcit
+          sudo chown -R ubuntu:ubuntu /var/www/wwds-events
+          cd /var/www/wwds-events/mtcit
+          rm -rf node_modules dist build .next || true
+          cp -r $GITHUB_WORKSPACE/* .
+
+      - name: Create production .env
+        run: |
+          cd /var/www/wwds-events/mtcit
+          sudo rm -f .env
+          sudo touch .env
+          sudo tee .env > /dev/null <<EOF
+          MONGO_URI=${{ secrets.MONGO_URI }}
+          CLIENT_URL=${{ secrets.CLIENT_URL }}
+          MASTER_KEY=${{ secrets.MASTER_KEY }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          JWT_ACCESS_EXPIRY=${{ secrets.JWT_ACCESS_EXPIRY }}
+          JWT_REFRESH_EXPIRY=${{ secrets.JWT_REFRESH_EXPIRY }}
+          AWS_REGION=${{ secrets.AWS_REGION }}
+          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          S3_BUCKET=${{ secrets.S3_BUCKET }}
+          CLOUDFRONT_URL=${{ secrets.CLOUDFRONT_URL }}
+          NODE_ENV=production
+          PORT=${{ secrets.PORT }}
+          EOF
+
+      - name: Install dependencies & restart PM2
+        run: |
+          cd /var/www/wwds-events/mtcit
+          npm ci --omit=dev
+          pm2 restart mtcit-backend --update-env || pm2 start npm --name "mtcit-backend" -- run start
+          pm2 save

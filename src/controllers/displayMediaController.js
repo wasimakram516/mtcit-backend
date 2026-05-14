@@ -1,10 +1,11 @@
 const DisplayMedia = require("../models/DisplayMedia");
 const response = require("../utils/response");
-const { deleteImage } = require("../config/cloudinary");
-const { uploadToCloudinary } = require("../utils/uploadToCloudinary");
+const { deleteFromS3, uploadToS3 } = require("../utils/s3Storage");
 const asyncHandler = require("../middlewares/asyncHandler");
 
 let io;
+const STORAGE_ROOT = "mtcit";
+const STORAGE_MODULE = "display-media";
 
 const parseJsonArray = (value) => {
   if (!value) return [];
@@ -23,6 +24,9 @@ const normalizeNumber = (value, fallback = 0) => {
   return Number.isFinite(numericValue) ? numericValue : fallback;
 };
 
+const getMediaType = (mimetype = "") =>
+  mimetype.startsWith("video/") ? "video" : "image";
+
 const buildLayerRecord = async (layerMeta = {}, uploadedFileEn, uploadedFileAr) => {
   let urlEn = layerMeta.existingUrlEn || layerMeta.existingUrl || "";
   let typeEn = layerMeta.typeEn || layerMeta.type || "image";
@@ -30,21 +34,25 @@ const buildLayerRecord = async (layerMeta = {}, uploadedFileEn, uploadedFileAr) 
   let typeAr = layerMeta.typeAr || "image";
 
   if (uploadedFileEn) {
-    const uploaded = await uploadToCloudinary(
-      uploadedFileEn.buffer,
-      uploadedFileEn.mimetype
+    const { fileUrl } = await uploadToS3(
+      uploadedFileEn,
+      STORAGE_ROOT,
+      STORAGE_MODULE,
+      { inline: true }
     );
-    urlEn = uploaded.secure_url;
-    typeEn = uploaded.resource_type;
+    urlEn = fileUrl;
+    typeEn = getMediaType(uploadedFileEn.mimetype);
   }
 
   if (uploadedFileAr) {
-    const uploaded = await uploadToCloudinary(
-      uploadedFileAr.buffer,
-      uploadedFileAr.mimetype
+    const { fileUrl } = await uploadToS3(
+      uploadedFileAr,
+      STORAGE_ROOT,
+      STORAGE_MODULE,
+      { inline: true }
     );
-    urlAr = uploaded.secure_url;
-    typeAr = uploaded.resource_type;
+    urlAr = fileUrl;
+    typeAr = getMediaType(uploadedFileAr.mimetype);
   }
 
   if (!urlEn && !urlAr) return null;
@@ -129,36 +137,42 @@ exports.createDisplayMedia = asyncHandler(async (req, res) => {
 
   // Upload English media if provided
   if (req.files?.mediaEn?.[0]) {
-    const uploadedEn = await uploadToCloudinary(
-      req.files.mediaEn[0].buffer,
-      req.files.mediaEn[0].mimetype
+    const uploadedEn = await uploadToS3(
+      req.files.mediaEn[0],
+      STORAGE_ROOT,
+      STORAGE_MODULE,
+      { inline: true }
     );
     mediaObj.media.en = {
-      type: uploadedEn.resource_type,
-      url: uploadedEn.secure_url,
+      type: getMediaType(req.files.mediaEn[0].mimetype),
+      url: uploadedEn.fileUrl,
     };
   }
 
   // Upload Arabic media if provided
   if (req.files?.mediaAr?.[0]) {
-    const uploadedAr = await uploadToCloudinary(
-      req.files.mediaAr[0].buffer,
-      req.files.mediaAr[0].mimetype
+    const uploadedAr = await uploadToS3(
+      req.files.mediaAr[0],
+      STORAGE_ROOT,
+      STORAGE_MODULE,
+      { inline: true }
     );
     mediaObj.media.ar = {
-      type: uploadedAr.resource_type,
-      url: uploadedAr.secure_url,
+      type: getMediaType(req.files.mediaAr[0].mimetype),
+      url: uploadedAr.fileUrl,
     };
   }
 
   // Upload pinpoint if provided
   if (req.files?.pinpoint?.[0]) {
-    const pinpointUploaded = await uploadToCloudinary(
-      req.files.pinpoint[0].buffer,
-      req.files.pinpoint[0].mimetype
+    const pinpointUploaded = await uploadToS3(
+      req.files.pinpoint[0],
+      STORAGE_ROOT,
+      STORAGE_MODULE,
+      { inline: true }
     );
     mediaObj.pinpoint = {
-      file: { type: "image", url: pinpointUploaded.secure_url },
+      file: { type: "image", url: pinpointUploaded.fileUrl },
       position: { x: Number(pinpointX), y: Number(pinpointY) },
     };
   }
@@ -215,44 +229,50 @@ exports.updateDisplayMedia = asyncHandler(async (req, res) => {
 
   // Update English media if provided
   if (req.files?.mediaEn?.[0]) {
-    if (item.media?.en?.url) await deleteImage(item.media.en.url);
-    const uploadedEn = await uploadToCloudinary(
-      req.files.mediaEn[0].buffer,
-      req.files.mediaEn[0].mimetype
+    if (item.media?.en?.url) await deleteFromS3(item.media.en.url);
+    const uploadedEn = await uploadToS3(
+      req.files.mediaEn[0],
+      STORAGE_ROOT,
+      STORAGE_MODULE,
+      { inline: true }
     );
     item.media.en = {
-      type: uploadedEn.resource_type,
-      url: uploadedEn.secure_url,
+      type: getMediaType(req.files.mediaEn[0].mimetype),
+      url: uploadedEn.fileUrl,
     };
   }
 
   // Update Arabic media if provided
   if (req.files?.mediaAr?.[0]) {
-    if (item.media?.ar?.url) await deleteImage(item.media.ar.url);
-    const uploadedAr = await uploadToCloudinary(
-      req.files.mediaAr[0].buffer,
-      req.files.mediaAr[0].mimetype
+    if (item.media?.ar?.url) await deleteFromS3(item.media.ar.url);
+    const uploadedAr = await uploadToS3(
+      req.files.mediaAr[0],
+      STORAGE_ROOT,
+      STORAGE_MODULE,
+      { inline: true }
     );
     item.media.ar = {
-      type: uploadedAr.resource_type,
-      url: uploadedAr.secure_url,
+      type: getMediaType(req.files.mediaAr[0].mimetype),
+      url: uploadedAr.fileUrl,
     };
   }
 
   // Pinpoint logic stays the same
   if (req.files?.pinpoint?.[0]) {
-    if (item.pinpoint?.file?.url) await deleteImage(item.pinpoint.file.url);
-    const pinpointUploaded = await uploadToCloudinary(
-      req.files.pinpoint[0].buffer,
-      req.files.pinpoint[0].mimetype
+    if (item.pinpoint?.file?.url) await deleteFromS3(item.pinpoint.file.url);
+    const pinpointUploaded = await uploadToS3(
+      req.files.pinpoint[0],
+      STORAGE_ROOT,
+      STORAGE_MODULE,
+      { inline: true }
     );
     if (!item.pinpoint) {
       item.pinpoint = {
-        file: { type: "image", url: pinpointUploaded.secure_url },
+        file: { type: "image", url: pinpointUploaded.fileUrl },
         position: { x: pinpointX !== undefined ? Number(pinpointX) : 0, y: pinpointY !== undefined ? Number(pinpointY) : 0 },
       };
     } else {
-      item.pinpoint.file = { type: "image", url: pinpointUploaded.secure_url };
+      item.pinpoint.file = { type: "image", url: pinpointUploaded.fileUrl };
       item.pinpoint.position = {
         x: pinpointX !== undefined ? Number(pinpointX) : item.pinpoint.position.x,
         y: pinpointY !== undefined ? Number(pinpointY) : item.pinpoint.position.y,
@@ -309,7 +329,7 @@ exports.updateDisplayMedia = asyncHandler(async (req, res) => {
       }
     }
 
-    // Deletion logic for Cloudinary
+    // Delete any layer assets that are no longer referenced after the update
     const nextUrls = new Set();
     nextLayers.forEach(l => {
       if (l.fileEn?.url) nextUrls.add(l.fileEn.url);
@@ -325,7 +345,7 @@ exports.updateDisplayMedia = asyncHandler(async (req, res) => {
 
     for (const url of prevUrls) {
       if (url && !nextUrls.has(url)) {
-        await deleteImage(url);
+        await deleteFromS3(url);
       }
     }
 
@@ -343,13 +363,18 @@ exports.deleteDisplayMedia = asyncHandler(async (req, res) => {
   if (!item) return response(res, 404, "Media not found.");
 
   // Delete English media if exists
-  if (item.media?.en?.url) await deleteImage(item.media.en.url);
+  if (item.media?.en?.url) await deleteFromS3(item.media.en.url);
 
   // Delete Arabic media if exists
-  if (item.media?.ar?.url) await deleteImage(item.media.ar.url);
+  if (item.media?.ar?.url) await deleteFromS3(item.media.ar.url);
 
   // Delete pinpoint image if exists
-  if (item.pinpoint?.file?.url) await deleteImage(item.pinpoint.file.url);
+  if (item.pinpoint?.file?.url) await deleteFromS3(item.pinpoint.file.url);
+
+  for (const layer of item.layers || []) {
+    if (layer.fileEn?.url) await deleteFromS3(layer.fileEn.url);
+    if (layer.fileAr?.url) await deleteFromS3(layer.fileAr.url);
+  }
 
   await item.deleteOne();
   await emitMediaUpdate();

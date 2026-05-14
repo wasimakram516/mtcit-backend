@@ -1,10 +1,11 @@
 const Background = require("../models/Background");
 const response = require("../utils/response");
-const { deleteImage } = require("../config/cloudinary");
-const { uploadToCloudinary } = require("../utils/uploadToCloudinary");
+const { deleteFromS3, uploadToS3 } = require("../utils/s3Storage");
 const asyncHandler = require("../middlewares/asyncHandler");
 
 let io;
+const STORAGE_ROOT = "mtcit";
+const STORAGE_MODULE = "backgrounds";
 
 // Set WebSocket instance
 exports.setSocketIo = (socketIoInstance) => {
@@ -67,16 +68,16 @@ exports.createBackground = asyncHandler(async (req, res) => {
   const bulkFiles = req.files?.images || [];
   if (bulkFiles.length > 0) {
     for (const [index, file] of bulkFiles.entries()) {
-      const cloudinaryResult = await uploadToCloudinary(file.buffer, file.mimetype);
+      const { fileUrl } = await uploadToS3(file, STORAGE_ROOT, STORAGE_MODULE, {
+        inline: true,
+      });
       const baseTitle = title?.trim() || file.originalname.replace(/\.[^/.]+$/, "");
 
       const background = new Background({
         title: bulkFiles.length > 1 ? `${baseTitle} ${index + 1}` : baseTitle,
         description,
-        imageUrl: cloudinaryResult.secure_url,
-        imageUrlEn: cloudinaryResult.secure_url,
-        publicId: cloudinaryResult.public_id,
-        publicIdEn: cloudinaryResult.public_id,
+        imageUrl: fileUrl,
+        imageUrlEn: fileUrl,
         layer: nextLayer,
         position: normalizedPosition,
         size: normalizedSize,
@@ -98,20 +99,20 @@ exports.createBackground = asyncHandler(async (req, res) => {
     }
 
     let imageUrlEn = "";
-    let publicIdEn = "";
     let imageUrlAr = "";
-    let publicIdAr = "";
 
     if (fileEn) {
-      const result = await uploadToCloudinary(fileEn.buffer, fileEn.mimetype);
-      imageUrlEn = result.secure_url;
-      publicIdEn = result.public_id;
+      const { fileUrl } = await uploadToS3(fileEn, STORAGE_ROOT, STORAGE_MODULE, {
+        inline: true,
+      });
+      imageUrlEn = fileUrl;
     }
 
     if (fileAr) {
-      const result = await uploadToCloudinary(fileAr.buffer, fileAr.mimetype);
-      imageUrlAr = result.secure_url;
-      publicIdAr = result.public_id;
+      const { fileUrl } = await uploadToS3(fileAr, STORAGE_ROOT, STORAGE_MODULE, {
+        inline: true,
+      });
+      imageUrlAr = fileUrl;
     }
 
     const background = new Background({
@@ -119,10 +120,7 @@ exports.createBackground = asyncHandler(async (req, res) => {
       description,
       imageUrl: imageUrlEn || imageUrlAr, // Legacy fallback
       imageUrlEn,
-      publicIdEn,
       imageUrlAr,
-      publicIdAr,
-      publicId: publicIdEn || publicIdAr, // Legacy fallback
       layer: nextLayer,
       position: normalizedPosition,
       size: normalizedSize,
@@ -158,27 +156,28 @@ exports.updateBackground = asyncHandler(async (req, res) => {
   // Handle English image update
   const fileEn = req.files?.imageEn?.[0] || req.files?.image?.[0];
   if (fileEn) {
-    if (background.publicIdEn) {
-      await deleteImage(background.publicIdEn);
-    } else if (background.publicId) {
-      await deleteImage(background.publicId);
+    if (background.imageUrlEn) {
+      await deleteFromS3(background.imageUrlEn);
+    } else if (background.imageUrl) {
+      await deleteFromS3(background.imageUrl);
     }
-    const result = await uploadToCloudinary(fileEn.buffer, fileEn.mimetype);
-    background.imageUrlEn = result.secure_url;
-    background.publicIdEn = result.public_id;
-    background.imageUrl = result.secure_url; // Sync legacy
-    background.publicId = result.public_id; // Sync legacy
+    const { fileUrl } = await uploadToS3(fileEn, STORAGE_ROOT, STORAGE_MODULE, {
+      inline: true,
+    });
+    background.imageUrlEn = fileUrl;
+    background.imageUrl = fileUrl; // Sync legacy
   }
 
   // Handle Arabic image update
   const fileAr = req.files?.imageAr?.[0];
   if (fileAr) {
-    if (background.publicIdAr) {
-      await deleteImage(background.publicIdAr);
+    if (background.imageUrlAr) {
+      await deleteFromS3(background.imageUrlAr);
     }
-    const result = await uploadToCloudinary(fileAr.buffer, fileAr.mimetype);
-    background.imageUrlAr = result.secure_url;
-    background.publicIdAr = result.public_id;
+    const { fileUrl } = await uploadToS3(fileAr, STORAGE_ROOT, STORAGE_MODULE, {
+      inline: true,
+    });
+    background.imageUrlAr = fileUrl;
   }
 
   // Update fields
@@ -206,15 +205,15 @@ exports.deleteBackground = asyncHandler(async (req, res) => {
     return response(res, 404, "Background not found");
   }
 
-  // Delete from Cloudinary
-  if (background.publicIdEn) {
-    await deleteImage(background.publicIdEn);
-  } else if (background.publicId) {
-    await deleteImage(background.publicId);
+  // Delete from S3
+  if (background.imageUrlEn) {
+    await deleteFromS3(background.imageUrlEn);
+  } else if (background.imageUrl) {
+    await deleteFromS3(background.imageUrl);
   }
   
-  if (background.publicIdAr) {
-    await deleteImage(background.publicIdAr);
+  if (background.imageUrlAr) {
+    await deleteFromS3(background.imageUrlAr);
   }
 
   await Background.deleteOne({ _id: id });
