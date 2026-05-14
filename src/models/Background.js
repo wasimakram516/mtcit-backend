@@ -12,7 +12,6 @@ const BackgroundImageSchema = new mongoose.Schema(
     },
     imageUrl: {
       type: String,
-      required: true,
     },
     imageUrlEn: {
       type: String,
@@ -20,14 +19,15 @@ const BackgroundImageSchema = new mongoose.Schema(
     imageUrlAr: {
       type: String,
     },
-    publicId: {
+    typeEn: {
       type: String,
+      enum: ["image", "video"],
+      default: "image",
     },
-    publicIdEn: {
+    typeAr: {
       type: String,
-    },
-    publicIdAr: {
-      type: String,
+      enum: ["image", "video"],
+      default: "image",
     },
     layer: {
       type: Number,

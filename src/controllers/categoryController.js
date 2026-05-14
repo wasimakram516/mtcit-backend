@@ -1,5 +1,8 @@
 const Category = require("../models/Category");
 const asyncHandler = require("../middlewares/asyncHandler");
+const { uploadToS3 } = require("../utils/s3Storage");
+
+const STORAGE_ROOT = "mtcit/categories";
 
 // Helper to build tree from flat list
 const buildTree = (items) => {
@@ -25,11 +28,22 @@ exports.listCategories = asyncHandler(async (req, res) => {
 });
 
 exports.createCategory = asyncHandler(async (req, res) => {
-  const { name, parent } = req.body; // name: { en, ar }
+  let { name, parent } = req.body;
+  
+  if (typeof name === "string") {
+    try { name = JSON.parse(name); } catch(e) {}
+  }
+
   if (!name || !name.en) return res.status(400).json({ success: false, message: "Name.en is required" });
 
   const cat = new Category({ name, parent: parent || null });
-  if (parent) {
+
+  if (req.file) {
+    const { fileUrl } = await uploadToS3(req.file, STORAGE_ROOT, { inline: true });
+    cat.icon = fileUrl;
+  }
+
+  if (parent && parent !== "null") {
     const parentDoc = await Category.findById(parent);
     if (!parentDoc) return res.status(400).json({ success: false, message: "Parent not found" });
     cat.path = [...(parentDoc.path || []), parentDoc._id];
@@ -45,13 +59,29 @@ exports.createCategory = asyncHandler(async (req, res) => {
 
 exports.updateCategory = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { name, parent } = req.body;
+  let { name, parent, removeIcon } = req.body;
+  
+  if (typeof name === "string") {
+    try { name = JSON.parse(name); } catch(e) {}
+  }
+
   const cat = await Category.findById(id);
   if (!cat) return res.status(404).json({ success: false, message: "Category not found" });
 
+  // Handle icon removal
+  if (removeIcon === "true" && !req.file) {
+    cat.icon = "";
+  }
+
   if (name) cat.name = name;
+  
+  if (req.file) {
+    const { fileUrl } = await uploadToS3(req.file, STORAGE_ROOT, { inline: true });
+    cat.icon = fileUrl;
+  }
+
   if (parent !== undefined) {
-    if (parent === null) {
+    if (parent === null || parent === "null" || parent === "") {
       cat.parent = null;
       cat.path = [];
       cat.depth = 0;
@@ -76,6 +106,6 @@ exports.deleteCategory = asyncHandler(async (req, res) => {
   // Reparent children to parent of deleted node (or null)
   await Category.updateMany({ parent: cat._id }, { $set: { parent: cat.parent || null } });
 
-  await cat.deleteOne();
+  await Category.deleteOne({ _id: id });
   res.json({ success: true });
 });

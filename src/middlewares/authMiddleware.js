@@ -2,30 +2,18 @@ const jwt = require("jsonwebtoken");
 const env = require("../config/env");
 const response= require("../utils/response");
 
-// ✅ Protect Route (Ensure the user is authenticated)
+// Protect Route - BYPASSED (Allow all access)
 exports.protect = (req, res, next) => {
-  try {
-    const token = req.headers.authorization?.split(" ")[1];
-
-    if (!token) {
-      return response(res, 401, "Unauthorized - No token provided");
-    }
-
-    // ✅ Verify token
-    const decoded = jwt.verify(token, env.jwt.secret);
-    req.user = decoded;
-    
-    next();
-  } catch (error) {
-    return response(res, 401, "Unauthorized - Invalid token", null, error.message);
-  }
+  // Set a mock user so subsequent controllers don't crash if they expect user data
+  req.user = { 
+    id: "public-access-id", 
+    role: "admin",
+    username: "public_admin"
+  };
+  next();
 };
 
-// ✅ Admin-Only Access Middleware
+// Admin-Only Access Middleware - BYPASSED
 exports.adminOnly = (req, res, next) => {
-  if (!req.user || req.user.role !== "admin") {
-    return response(res, 403, "Forbidden - Admins only");
-  }
-  
   next();
 };

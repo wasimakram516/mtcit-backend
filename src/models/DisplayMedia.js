@@ -1,13 +1,87 @@
 const mongoose = require("mongoose");
 
+// Reusable sub-schema for a positioned media layer (used by both layers[] and mediaLayers[])
+const layerSchema = {
+  fileEn: {
+    type: {
+      type: String,
+      enum: ["image", "video"],
+      default: "image",
+    },
+    url: {
+      type: String,
+    },
+  },
+  fileAr: {
+    type: {
+      type: String,
+      enum: ["image", "video"],
+      default: "image",
+    },
+    url: {
+      type: String,
+    },
+  },
+  title: {
+    type: String,
+  },
+  description: {
+    type: String,
+  },
+  position: {
+    x: {
+      type: Number,
+      default: 0,
+    },
+    y: {
+      type: Number,
+      default: 0,
+    },
+  },
+  size: {
+    width: {
+      type: Number,
+      default: 100,
+    },
+    height: {
+      type: Number,
+      default: 100,
+    },
+  },
+  opacity: {
+    type: Number,
+    default: 1,
+  },
+  rotation: {
+    type: Number,
+    default: 0,
+  },
+  zIndex: {
+    type: Number,
+    default: 0,
+  },
+  isActive: {
+    type: Boolean,
+    default: true,
+  },
+};
+
 const DisplayMediaSchema = new mongoose.Schema(
   {
-    category: {
+    /** Display name in CMS and controller picker */
+    title: {
       type: String,
-      required: false,
+      required: true,
+      trim: true,
     },
-    subcategory: {
+    /** Globally unique identifier for controller / sockets */
+    slug: {
       type: String,
+      required: true,
+      unique: true,
+      trim: true,
+      lowercase: true,
+      index: true,
     },
     // New hierarchical category reference (ordered from root -> leaf)
     categoryPath: [
@@ -21,113 +95,11 @@ const DisplayMediaSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Category",
     },
-    media: {
-      en: {
-        type: {
-          type: String,
-          enum: ["image", "video"],
-          required: true,
-        },
-        url: {
-          type: String,
-          required: true,
-        },
-      },
-      ar: {
-        type: {
-          type: String,
-          enum: ["image", "video"],
-          required: true,
-        },
-        url: {
-          type: String,
-          required: true,
-        },
-      },
-    },
-    layers: [
-      {
-        fileEn: {
-          type: {
-            type: String,
-            enum: ["image", "video"],
-            default: "image",
-          },
-          url: {
-            type: String,
-          },
-          publicId: {
-            type: String,
-          },
-        },
-        fileAr: {
-          type: {
-            type: String,
-            enum: ["image", "video"],
-            default: "image",
-          },
-          url: {
-            type: String,
-          },
-          publicId: {
-            type: String,
-          },
-        },
-        // Legacy support
-        file: {
-          type: {
-            type: String,
-            enum: ["image", "video"],
-            default: "image",
-          },
-          url: {
-            type: String,
-          },
-        },
-        title: {
-          type: String,
-        },
-        description: {
-          type: String,
-        },
-        position: {
-          x: {
-            type: Number,
-            default: 0,
-          },
-          y: {
-            type: Number,
-            default: 0,
-          },
-        },
-        size: {
-          width: {
-            type: Number,
-            default: 100,
-          },
-          height: {
-            type: Number,
-            default: 100,
-          },
-        },
-        opacity: {
-          type: Number,
-          default: 1,
-        },
-        rotation: {
-          type: Number,
-          default: 0,
-        },
-        zIndex: {
-          type: Number,
-          default: 0,
-        },
-        isActive: {
-          type: Boolean,
-          default: true,
-        },
-      },
-    ],
+    // Per-media background layers — rendered at 90% stage (same as global background)
+    layers: [layerSchema],
+    // Media content layers — rendered in 70% centered foreground container
+    mediaLayers: [layerSchema],
+    // Logo/pinpoint overlay — rendered above the 70% media container
     pinpoint: {
       file: {
         type: {
@@ -153,13 +125,5 @@ const DisplayMediaSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-
-// Custom validation: require either legacy 'category' or new 'categoryPath'
-DisplayMediaSchema.pre("save", function (next) {
-  if (!this.category && (!this.categoryPath || this.categoryPath.length === 0)) {
-    return next(new Error("Either 'category' (legacy) or 'categoryPath' (new) must be provided."));
-  }
-  next();
-});
 
 module.exports = mongoose.model("DisplayMedia", DisplayMediaSchema);

@@ -43,7 +43,7 @@ exports.getActiveBackgrounds = asyncHandler(async (req, res) => {
 
 // Create background image
 exports.createBackground = asyncHandler(async (req, res) => {
-  const { title, description, position, size, opacity, rotation } = req.body;
+  const { title, description, position, size, opacity, rotation, typeEn, typeAr } = req.body;
 
   const parseJsonField = (value, fallback) => {
     if (value === undefined || value === null || value === "") return fallback;
@@ -59,7 +59,7 @@ exports.createBackground = asyncHandler(async (req, res) => {
   const normalizedSize = parseJsonField(size, { width: 100, height: 100 });
 
   const highestLayer = await Background.findOne().sort({ layer: -1 });
-  let nextLayer = (highestLayer?.layer || 0) + 1;
+  let nextLayer = highestLayer ? highestLayer.layer + 1 : 0;
 
   const createdBackgrounds = [];
 
@@ -120,6 +120,8 @@ exports.createBackground = asyncHandler(async (req, res) => {
       imageUrl: imageUrlEn || imageUrlAr, // Legacy fallback
       imageUrlEn,
       imageUrlAr,
+      typeEn: typeEn || "image",
+      typeAr: typeAr || "image",
       layer: nextLayer,
       position: normalizedPosition,
       size: normalizedSize,
@@ -144,12 +146,26 @@ exports.createBackground = asyncHandler(async (req, res) => {
 // Update background image
 exports.updateBackground = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { title, description, position, size, opacity, rotation, layer, isActive } =
+  const { title, description, position, size, opacity, rotation, layer, isActive, typeEn, typeAr, removeImageEn, removeImageAr } =
     req.body;
 
   const background = await Background.findById(id);
   if (!background) {
     return response(res, 404, "Background not found");
+  }
+
+  // Handle English image removal
+  if (removeImageEn === "true" && !req.files?.imageEn && !req.files?.image) {
+    if (background.imageUrlEn) await deleteFromS3(background.imageUrlEn);
+    if (background.imageUrl) await deleteFromS3(background.imageUrl);
+    background.imageUrlEn = "";
+    background.imageUrl = "";
+  }
+
+  // Handle Arabic image removal
+  if (removeImageAr === "true" && !req.files?.imageAr) {
+    if (background.imageUrlAr) await deleteFromS3(background.imageUrlAr);
+    background.imageUrlAr = "";
   }
 
   // Handle English image update
@@ -182,12 +198,18 @@ exports.updateBackground = asyncHandler(async (req, res) => {
   // Update fields
   if (title) background.title = title;
   if (description !== undefined) background.description = description;
-  if (position) background.position = JSON.parse(position);
-  if (size) background.size = JSON.parse(size);
+  if (position) {
+    background.position = typeof position === "string" ? JSON.parse(position) : position;
+  }
+  if (size) {
+    background.size = typeof size === "string" ? JSON.parse(size) : size;
+  }
   if (opacity !== undefined) background.opacity = opacity;
   if (rotation !== undefined) background.rotation = rotation;
   if (layer !== undefined) background.layer = layer;
   if (isActive !== undefined) background.isActive = isActive;
+  if (typeEn !== undefined) background.typeEn = typeEn;
+  if (typeAr !== undefined) background.typeAr = typeAr;
 
   await background.save();
   await emitBackgroundUpdate();

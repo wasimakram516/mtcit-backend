@@ -1,4 +1,20 @@
 const DisplayMedia = require("../models/DisplayMedia");
+const { normalizeSlug } = require("../utils/slugify");
+
+const toDisplayMediaPayload = (media) => {
+  if (!media) return null;
+  const m = media.toObject ? media.toObject({ flattenMaps: true }) : { ...media };
+  return {
+    _id: m._id,
+    slug: m.slug,
+    title: m.title,
+    categoryPath: m.categoryPath,
+    categoryRef: m.categoryRef,
+    layers: m.layers || [],
+    mediaLayers: m.mediaLayers || [],
+    pinpoint: m.pinpoint,
+  };
+};
 
 const socketHandler = (io) => {
   io.on("connection", async (socket) => {
@@ -114,86 +130,69 @@ const socketHandler = (io) => {
       io.emit("languageChanged", language);
     });
 
-    // ✅ When controller selects a category/subcategory
-    // Accept either legacy {category, subcategory} or {categoryPath: [ids]}
-    socket.on("selectCategory", async ({ category, subcategory, categoryPath, language }) => {
-      console.log(`📂 Category selection received | Lang: ${language}`);
-      console.log(`📋 categoryPath type check:`, Array.isArray(categoryPath), categoryPath);
+    // ✅ Category picked: list media for leaf (no auto-load on big screen)
+    socket.on("selectCategory", async ({ categoryPath, language }) => {
+      console.log(`📂 selectCategory | Lang: ${language}`, categoryPath);
 
       try {
-        const categoryOptions = await getCategoryOptions();
-        const hasSubcategories = category ? (categoryOptions[category]?.length > 0) : false;
-        const shouldShowLoading = hasSubcategories ? !!subcategory : true;
+        io.emit("categorySelected");
+        io.emit("displayMedia", null);
 
-        if (shouldShowLoading) {
-          console.log("🚀 Emitting 'categorySelected' loading event");
-          io.emit("categorySelected");
+        if (!Array.isArray(categoryPath) || categoryPath.length === 0) {
+          io.emit("categoryMediaList", { categoryPath: [], leafId: null, items: [] });
+          return;
         }
 
-        setTimeout(
-          async () => {
-            try {
-              let media = null;
+        const mongoose = require("mongoose");
+        const leafId = categoryPath[categoryPath.length - 1];
+        const leafObjectId = new mongoose.Types.ObjectId(leafId);
 
-              if (Array.isArray(categoryPath) && categoryPath.length) {
-                const leafId = categoryPath[categoryPath.length - 1];
-                console.log(`🔍 Looking for media with categoryRef: ${leafId} (type: ${typeof leafId})`);
-                
-                // Convert string ID to ObjectId
-                const mongoose = require("mongoose");
-                const leafObjectId = new mongoose.Types.ObjectId(leafId);
-                
-                // First try: find by categoryRef (most specific)
-                media = await DisplayMedia.findOne({ categoryRef: leafObjectId });
-                console.log(`First try (categoryRef with ObjectId): ${media ? "FOUND" : "NOT FOUND"}`);
-                
-                // Second try: find by exact categoryPath match (convert all strings to ObjectIds)
-                if (!media) {
-                  console.log(`🔍 Trying categoryPath exact match...`);
-                  const categoryPathObjectIds = categoryPath.map(id => new mongoose.Types.ObjectId(id));
-                  media = await DisplayMedia.findOne({ 
-                    categoryPath: { $all: categoryPathObjectIds, $size: categoryPath.length } 
-                  });
-                  console.log(`Second try (categoryPath with ObjectIds): ${media ? "FOUND" : "NOT FOUND"}`);
-                }
-                
-                // Log what we're emitting
-                if (media) {
-                  console.log(`✅ Found media ID: ${media._id}`);
-                  console.log(`📊 Media structure - en: ${!!media.media?.en}, ar: ${!!media.media?.ar}`);
-                  console.log(`📝 Category info - category: ${media.category}, subcategory: ${media.subcategory}, categoryRef: ${media.categoryRef}`);
-                }
-              } else if (category) {
-                console.log(`🔍 Looking for media with category: ${category}, subcategory: ${subcategory}`);
-                media = await DisplayMedia.findOne({ category, subcategory });
-                console.log(`${media ? "FOUND" : "NOT FOUND"}`);
-              }
+        const rows = await DisplayMedia.find({ categoryRef: leafObjectId })
+          .select("slug title _id")
+          .sort({ title: 1 })
+          .lean();
 
-              if (media) {
-                const response = {
-                  _id: media._id,
-                  category: media.category,
-                  subcategory: media.subcategory,
-                  categoryPath: media.categoryPath,
-                  media: media.media, // Send BOTH en and ar
-                  layers: media.layers || [],
-                  pinpoint: media.pinpoint,
-                };
-                console.log(`📤 Emitting displayMedia response`);
-                io.emit("displayMedia", response);
-              } else {
-                console.log("⚠️ No media found for this category - emitting null");
-                io.emit("displayMedia", null);
-              }
-            } catch (err) {
-              console.error("❌ Error fetching media:", err);
-              io.emit("displayMedia", null);
-            }
-          },
-          shouldShowLoading ? 1000 : 0
-        );
+        const items = rows.map((row) => ({
+          slug: row.slug,
+          title: row.title,
+          _id: String(row._id),
+        }));
+
+        io.emit("categoryMediaList", {
+          categoryPath,
+          leafId: String(leafId),
+          language: language || "en",
+          items,
+        });
       } catch (err) {
-        console.error("❌ Error fetching category options:", err);
+        console.error("❌ selectCategory:", err);
+        io.emit("categoryMediaList", { categoryPath: [], leafId: null, items: [] });
+        io.emit("displayMedia", null);
+      }
+    });
+
+    socket.on("selectMedia", async ({ slug, language }) => {
+      console.log(`🎯 selectMedia slug=${slug}`);
+      try {
+        const normalized = normalizeSlug(slug);
+        const trimmed = String(slug ?? "").trim();
+        let media = null;
+        if (normalized) {
+          media = await DisplayMedia.findOne({ slug: normalized });
+        }
+        if (!media && trimmed) {
+          media = await DisplayMedia.findOne({ slug: trimmed.toLowerCase() });
+        }
+        if (!media) {
+          io.emit("displayMedia", null);
+          return;
+        }
+        io.emit("displayMedia", toDisplayMediaPayload(media));
+        if (language) {
+          io.emit("languageChanged", language);
+        }
+      } catch (err) {
+        console.error("❌ selectMedia:", err);
         io.emit("displayMedia", null);
       }
     });

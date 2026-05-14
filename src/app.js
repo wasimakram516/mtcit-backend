@@ -10,6 +10,7 @@ const backgroundRoutes = require("./routes/backgroundRoutes");
 const categoryRoutes = require("./routes/categoryRoutes");
 const errorHandler = require("./middlewares/errorHandler");
 const seedAdmin = require("./seeder/adminSeeder");
+const runMigrations = require("./migrations/index");
 
 const app = express();
 
@@ -36,6 +37,7 @@ app.use(cookieParser());
 const initializeApp = async () => {
   try {
     await connectDB();
+    await runMigrations();
     await seedAdmin();
   } catch (error) {
     console.error("❌ Error initializing app:", error);
@@ -52,7 +54,6 @@ app.use("/api/categories", categoryRoutes);
 
 // Health Check
 app.get("/", (req, res) => {
-  console.log("📡 Timeline Server is running...");
   res.status(200).send("OK");
 });
 
