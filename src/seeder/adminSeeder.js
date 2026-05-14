@@ -4,16 +4,22 @@ const env = require("../config/env");
 
 const seedAdmin = async () => {
   try {
-    const adminEmail = "admin@wwds.com".toLowerCase();
+    const adminEmail = "admin@wwds.com";
+    const adminPassword = "admin";
 
     const existingAdmin = await User.findOne({ email: adminEmail });
     if (existingAdmin) {
-      console.log("✅ Admin already exists:", existingAdmin.email);
+      existingAdmin.name = "Admin User";
+      existingAdmin.email = adminEmail;
+      existingAdmin.password = adminPassword;
+      existingAdmin.role = "admin";
+      await existingAdmin.save();
+      console.log("Admin credentials refreshed:", existingAdmin.email);
     } else {
       const admin = new User({
         name: "Admin User",
         email: adminEmail,
-        password: "Admin@WWDS#2025",
+        password: adminPassword,
         role: "admin",
       });
 
@@ -25,5 +31,5 @@ const seedAdmin = async () => {
   }
 };
 
-// ✅ Ensure seedAdmin is properly exported as a function
+// Ensure seedAdmin is properly exported as a function
 module.exports = seedAdmin;
