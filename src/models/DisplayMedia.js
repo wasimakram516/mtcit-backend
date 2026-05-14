@@ -4,10 +4,22 @@ const DisplayMediaSchema = new mongoose.Schema(
   {
     category: {
       type: String,
-      required: true,
+      required: false,
     },
     subcategory: {
       type: String,
+    },
+    // New hierarchical category reference (ordered from root -> leaf)
+    categoryPath: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Category",
+      },
+    ],
+    // Convenience reference to the selected (leaf) category
+    categoryRef: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Category",
     },
     media: {
       en: {
@@ -141,5 +153,13 @@ const DisplayMediaSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Custom validation: require either legacy 'category' or new 'categoryPath'
+DisplayMediaSchema.pre("save", function (next) {
+  if (!this.category && (!this.categoryPath || this.categoryPath.length === 0)) {
+    return next(new Error("Either 'category' (legacy) or 'categoryPath' (new) must be provided."));
+  }
+  next();
+});
 
 module.exports = mongoose.model("DisplayMedia", DisplayMediaSchema);

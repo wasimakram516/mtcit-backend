@@ -122,15 +122,34 @@ exports.getMediaById = asyncHandler(async (req, res) => {
 // ✅ Create new display media
 exports.createDisplayMedia = asyncHandler(async (req, res) => {
   const { category, subcategory, pinpointX, pinpointY } = req.body;
+  // categoryPath may be provided as JSON string or array of ids
+  const rawCategoryPath = req.body.categoryPath;
+  const categoryPath = Array.isArray(rawCategoryPath)
+    ? rawCategoryPath
+    : (() => {
+        try {
+          const parsed = JSON.parse(rawCategoryPath);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return [];
+        }
+      })();
+  
+  console.log("📝 createDisplayMedia received:", { category, categoryPath, rawCategoryPath });
+  
   const layerMetaList = parseJsonArray(req.body.layers);
   const uploadedLayerFiles = req.files?.mediaLayers || [];
 
   const mediaObj = {
     category,
     subcategory,
+    categoryPath: categoryPath.length ? categoryPath : undefined,
+    categoryRef: categoryPath.length ? categoryPath[categoryPath.length - 1] : undefined,
     media: {},
     layers: [],
   };
+
+  console.log("📦 mediaObj before upload:", { category: mediaObj.category, categoryPath: mediaObj.categoryPath, categoryRef: mediaObj.categoryRef });
 
   // Upload English media if provided
   if (req.files?.mediaEn?.[0]) {
@@ -215,11 +234,20 @@ exports.updateDisplayMedia = asyncHandler(async (req, res) => {
   if (!item) return response(res, 404, "Media item not found.");
 
   const { category, subcategory, pinpointX, pinpointY } = req.body;
+  // parse categoryPath if provided
+  const rawCategoryPath = req.body.categoryPath;
+  const categoryPath = rawCategoryPath
+    ? (Array.isArray(rawCategoryPath) ? rawCategoryPath : (() => { try { const parsed = JSON.parse(rawCategoryPath); return Array.isArray(parsed) ? parsed : null; } catch { return null; } })())
+    : null;
   const layerMetaList = req.body.layers ? parseJsonArray(req.body.layers) : null;
   const uploadedLayerFiles = req.files?.mediaLayers || [];
 
   if (category) item.category = category;
   if (subcategory) item.subcategory = subcategory;
+  if (categoryPath && Array.isArray(categoryPath)) {
+    item.categoryPath = categoryPath;
+    item.categoryRef = categoryPath.length ? categoryPath[categoryPath.length - 1] : null;
+  }
 
   // Update English media if provided
   if (req.files?.mediaEn?.[0]) {

@@ -7,6 +7,7 @@ const env = require("./config/env");
 const authRoutes = require("./routes/authRoutes");
 const displayMediaRoutes = require("./routes/displayMediaRoutes");
 const backgroundRoutes = require("./routes/backgroundRoutes");
+const categoryRoutes = require("./routes/categoryRoutes");
 const errorHandler = require("./middlewares/errorHandler");
 const seedAdmin = require("./seeder/adminSeeder");
 
@@ -47,6 +48,7 @@ initializeApp();
 app.use("/api/auth", authRoutes);
 app.use("/api/display-media", displayMediaRoutes);
 app.use("/api/backgrounds", backgroundRoutes);
+app.use("/api/categories", categoryRoutes);
 
 // Health Check
 app.get("/", (req, res) => {
