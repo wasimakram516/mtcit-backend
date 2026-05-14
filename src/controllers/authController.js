@@ -95,28 +95,18 @@ exports.refreshToken = asyncHandler(async (req, res) => {
   const refreshToken = req.cookies.refreshToken;
 
   if (!refreshToken) {
-    console.warn("No refresh token found in cookies.");
     return response(res, 401, "No refresh token provided");
   }
 
-  console.log("Verifying refresh token...");
+  jwt.verify(refreshToken, env.jwt.secret, (err, decoded) => {
+    if (err) return response(res, 403, "Invalid refresh token");
 
-  try {
-    const decoded = jwt.verify(refreshToken, env.jwt.secret);
-
-    const user = await User.findById(decoded.id).select("_id role");
-    if (!user) {
-      return response(res, 401, "User not found for refresh token");
-    }
-
-    const newAccessToken = jwt.sign({ id: user._id, role: user.role }, env.jwt.secret, {
+    const newAccessToken = jwt.sign({ id: decoded.id }, env.jwt.secret, {
       expiresIn: env.jwt.accessExpiry,
     });
 
     return response(res, 200, "Token refreshed", { accessToken: newAccessToken });
-  } catch (err) {
-    return response(res, 403, "Invalid refresh token");
-  }
+  });
 });
 
 // ✅ Logout User (Clears Refresh Token Cookie)

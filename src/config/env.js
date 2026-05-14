@@ -37,7 +37,6 @@ const env = {
     s3Bucket: validateEnv("S3_BUCKET"),
     cloudfrontUrl: getEnv("CLOUDFRONT_URL"),
   },
-  node_env: process.env.NODE_ENV || "development",
 };
 
 module.exports = env;
