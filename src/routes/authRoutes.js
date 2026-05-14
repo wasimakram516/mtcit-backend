@@ -5,11 +5,11 @@ const {
   refreshToken,
   logout
 } = require("../controllers/authController");
-const { protect, adminOnly } = require("../middlewares/authMiddleware");
+const { protect } = require("../middlewares/authMiddleware");
 const router = express.Router();
 
 router.post("/register", registerAdmin);
 router.post("/login", login);
 router.get("/refresh", refreshToken);
-router.post("/logout", protect, adminOnly, logout);
+router.post("/logout", protect, logout);
 module.exports = router;
