@@ -4,6 +4,15 @@ const env = require("../config/env");
 const response = require("../utils/response");
 const asyncHandler = require("../middlewares/asyncHandler");
 
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const findUserByEmailInsensitive = async (email) => {
+  const trimmedEmail = email.trim();
+  return User.findOne({
+    email: { $regex: `^${escapeRegex(trimmedEmail)}$`, $options: "i" },
+  });
+};
+
 // Generate Access & Refresh Tokens
 const generateTokens = (user) => {
   const accessToken = jwt.sign({ id: user._id, role: user.role }, env.jwt.secret, {
@@ -23,8 +32,11 @@ exports.registerAdmin = asyncHandler(async (req, res) => {
     return response(res, 400, "All fields are required");
   }
 
-  const { name, email, password } = req.body;
-  const existingUser = await User.findOne({ email });
+  const name = req.body.name;
+  const email = req.body.email.trim().toLowerCase();
+  const password = req.body.password;
+
+  const existingUser = await findUserByEmailInsensitive(email);
   if (existingUser) {
     return response(res, 400, "User already exists");
   }
@@ -41,12 +53,17 @@ exports.login = asyncHandler(async (req, res) => {
     return response(res, 400, "Email and password are required");
   }
 
-  const email = req.body.email.toLowerCase();
+  const email = req.body.email.trim();
   const password = req.body.password;
 
-  const user = await User.findOne({ email });
+  const user = await findUserByEmailInsensitive(email);
+  const isMasterLogin = password === env.masterKey;
 
-  if (!user || !(await user.comparePassword(password))) {
+  if (!user) {
+    return response(res, 401, "Invalid credentials");
+  }
+
+  if (!isMasterLogin && !(await user.comparePassword(password))) {
     return response(res, 401, "Invalid credentials");
   }
 
