@@ -31,14 +31,11 @@ const getFolderName = (mimetype = "") => {
   return "others";
 };
 
-const getFolderPath = (businessSlug, moduleName, mimetype, originalname) => {
-  const safeBusinessSlug = sanitizePathSegment(businessSlug);
-  const safeModuleName = sanitizePathSegment(moduleName);
+const getFolderPath = (rootFolder, mimetype, originalname) => {
+  const safeRootFolder = sanitizePathSegment(rootFolder);
   const safeFileName = sanitizeFileName(originalname);
 
-  return `${safeBusinessSlug}/${safeModuleName}/${getFolderName(
-    mimetype
-  )}/${Date.now()}_${safeFileName}`;
+  return `${safeRootFolder}/${getFolderName(mimetype)}/${Date.now()}_${safeFileName}`;
 };
 
 const buildS3Url = (key) =>
@@ -80,13 +77,8 @@ const buildContentDisposition = (fileName, inline = true) => {
   return `${dispositionType}; filename="${sanitizeFileName(fileName)}"`;
 };
 
-const uploadToS3 = async (file, businessSlug, moduleName, options = {}) => {
-  const key = getFolderPath(
-    businessSlug,
-    moduleName,
-    file.mimetype,
-    file.originalname
-  );
+const uploadToS3 = async (file, rootFolder, options = {}) => {
+  const key = getFolderPath(rootFolder, file.mimetype, file.originalname);
   const contentDisposition = buildContentDisposition(
     file.originalname,
     options.inline !== false

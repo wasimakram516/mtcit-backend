@@ -5,7 +5,6 @@ const asyncHandler = require("../middlewares/asyncHandler");
 
 let io;
 const STORAGE_ROOT = "mtcit";
-const STORAGE_MODULE = "display-media";
 
 const parseJsonArray = (value) => {
   if (!value) return [];
@@ -37,7 +36,6 @@ const buildLayerRecord = async (layerMeta = {}, uploadedFileEn, uploadedFileAr) 
     const { fileUrl } = await uploadToS3(
       uploadedFileEn,
       STORAGE_ROOT,
-      STORAGE_MODULE,
       { inline: true }
     );
     urlEn = fileUrl;
@@ -48,7 +46,6 @@ const buildLayerRecord = async (layerMeta = {}, uploadedFileEn, uploadedFileAr) 
     const { fileUrl } = await uploadToS3(
       uploadedFileAr,
       STORAGE_ROOT,
-      STORAGE_MODULE,
       { inline: true }
     );
     urlAr = fileUrl;
@@ -140,7 +137,6 @@ exports.createDisplayMedia = asyncHandler(async (req, res) => {
     const uploadedEn = await uploadToS3(
       req.files.mediaEn[0],
       STORAGE_ROOT,
-      STORAGE_MODULE,
       { inline: true }
     );
     mediaObj.media.en = {
@@ -154,7 +150,6 @@ exports.createDisplayMedia = asyncHandler(async (req, res) => {
     const uploadedAr = await uploadToS3(
       req.files.mediaAr[0],
       STORAGE_ROOT,
-      STORAGE_MODULE,
       { inline: true }
     );
     mediaObj.media.ar = {
@@ -168,7 +163,6 @@ exports.createDisplayMedia = asyncHandler(async (req, res) => {
     const pinpointUploaded = await uploadToS3(
       req.files.pinpoint[0],
       STORAGE_ROOT,
-      STORAGE_MODULE,
       { inline: true }
     );
     mediaObj.pinpoint = {
@@ -233,7 +227,6 @@ exports.updateDisplayMedia = asyncHandler(async (req, res) => {
     const uploadedEn = await uploadToS3(
       req.files.mediaEn[0],
       STORAGE_ROOT,
-      STORAGE_MODULE,
       { inline: true }
     );
     item.media.en = {
@@ -248,7 +241,6 @@ exports.updateDisplayMedia = asyncHandler(async (req, res) => {
     const uploadedAr = await uploadToS3(
       req.files.mediaAr[0],
       STORAGE_ROOT,
-      STORAGE_MODULE,
       { inline: true }
     );
     item.media.ar = {
@@ -263,7 +255,6 @@ exports.updateDisplayMedia = asyncHandler(async (req, res) => {
     const pinpointUploaded = await uploadToS3(
       req.files.pinpoint[0],
       STORAGE_ROOT,
-      STORAGE_MODULE,
       { inline: true }
     );
     if (!item.pinpoint) {

@@ -5,7 +5,6 @@ const asyncHandler = require("../middlewares/asyncHandler");
 
 let io;
 const STORAGE_ROOT = "mtcit";
-const STORAGE_MODULE = "backgrounds";
 
 // Set WebSocket instance
 exports.setSocketIo = (socketIoInstance) => {
@@ -68,7 +67,7 @@ exports.createBackground = asyncHandler(async (req, res) => {
   const bulkFiles = req.files?.images || [];
   if (bulkFiles.length > 0) {
     for (const [index, file] of bulkFiles.entries()) {
-      const { fileUrl } = await uploadToS3(file, STORAGE_ROOT, STORAGE_MODULE, {
+      const { fileUrl } = await uploadToS3(file, STORAGE_ROOT, {
         inline: true,
       });
       const baseTitle = title?.trim() || file.originalname.replace(/\.[^/.]+$/, "");
@@ -102,14 +101,14 @@ exports.createBackground = asyncHandler(async (req, res) => {
     let imageUrlAr = "";
 
     if (fileEn) {
-      const { fileUrl } = await uploadToS3(fileEn, STORAGE_ROOT, STORAGE_MODULE, {
+      const { fileUrl } = await uploadToS3(fileEn, STORAGE_ROOT, {
         inline: true,
       });
       imageUrlEn = fileUrl;
     }
 
     if (fileAr) {
-      const { fileUrl } = await uploadToS3(fileAr, STORAGE_ROOT, STORAGE_MODULE, {
+      const { fileUrl } = await uploadToS3(fileAr, STORAGE_ROOT, {
         inline: true,
       });
       imageUrlAr = fileUrl;
@@ -161,7 +160,7 @@ exports.updateBackground = asyncHandler(async (req, res) => {
     } else if (background.imageUrl) {
       await deleteFromS3(background.imageUrl);
     }
-    const { fileUrl } = await uploadToS3(fileEn, STORAGE_ROOT, STORAGE_MODULE, {
+    const { fileUrl } = await uploadToS3(fileEn, STORAGE_ROOT, {
       inline: true,
     });
     background.imageUrlEn = fileUrl;
@@ -174,7 +173,7 @@ exports.updateBackground = asyncHandler(async (req, res) => {
     if (background.imageUrlAr) {
       await deleteFromS3(background.imageUrlAr);
     }
-    const { fileUrl } = await uploadToS3(fileAr, STORAGE_ROOT, STORAGE_MODULE, {
+    const { fileUrl } = await uploadToS3(fileAr, STORAGE_ROOT, {
       inline: true,
     });
     background.imageUrlAr = fileUrl;
