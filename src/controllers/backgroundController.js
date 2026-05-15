@@ -57,6 +57,12 @@ const clamp01 = (value, fallback = 0) => {
   return Math.min(1, Math.max(0, n));
 };
 
+const clampTitleFontSize = (value, fallback = 56) => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(120, Math.max(24, n));
+};
+
 // Create background slide
 exports.createBackground = asyncHandler(async (req, res) => {
   const {
@@ -66,6 +72,7 @@ exports.createBackground = asyncHandler(async (req, res) => {
     darkOverlay,
     lightOverlay,
     titlePosition,
+    titleFontSize,
     typeEn,
     typeAr,
     isActive,
@@ -93,6 +100,7 @@ exports.createBackground = asyncHandler(async (req, res) => {
         opacity: opacity !== undefined ? clamp01(opacity, 1) : 1,
         darkOverlay: darkOverlay !== undefined ? clamp01(darkOverlay, 0) : 0,
         lightOverlay: lightOverlay !== undefined ? clamp01(lightOverlay, 0) : 0,
+        titleFontSize: titleFontSize !== undefined ? clampTitleFontSize(titleFontSize, 56) : 56,
         titlePosition: {
           x: Math.min(100, Math.max(0, Number(normalizedTitlePosition.x) || 50)),
           y: Math.min(100, Math.max(0, Number(normalizedTitlePosition.y) || 50)),
@@ -136,6 +144,7 @@ exports.createBackground = asyncHandler(async (req, res) => {
       opacity: opacity !== undefined ? clamp01(opacity, 1) : 1,
       darkOverlay: darkOverlay !== undefined ? clamp01(darkOverlay, 0) : 0,
       lightOverlay: lightOverlay !== undefined ? clamp01(lightOverlay, 0) : 0,
+      titleFontSize: titleFontSize !== undefined ? clampTitleFontSize(titleFontSize, 56) : 56,
       titlePosition: {
         x: Math.min(100, Math.max(0, Number(normalizedTitlePosition.x) || 50)),
         y: Math.min(100, Math.max(0, Number(normalizedTitlePosition.y) || 50)),
@@ -167,6 +176,7 @@ exports.updateBackground = asyncHandler(async (req, res) => {
     darkOverlay,
     lightOverlay,
     titlePosition,
+    titleFontSize,
     layer,
     isActive,
     typeEn,
@@ -236,6 +246,7 @@ exports.updateBackground = asyncHandler(async (req, res) => {
   if (opacity !== undefined) background.opacity = clamp01(opacity, background.opacity);
   if (darkOverlay !== undefined) background.darkOverlay = clamp01(darkOverlay, 0);
   if (lightOverlay !== undefined) background.lightOverlay = clamp01(lightOverlay, 0);
+  if (titleFontSize !== undefined) background.titleFontSize = clampTitleFontSize(titleFontSize, background.titleFontSize ?? 56);
   if (layer !== undefined) background.layer = Number(layer);
   if (isActive !== undefined) background.isActive = isActive;
   if (typeEn !== undefined) background.typeEn = typeEn;
