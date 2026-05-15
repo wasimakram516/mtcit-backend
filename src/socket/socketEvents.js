@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const DisplayMedia = require("../models/DisplayMedia");
 const Category = require("../models/Category");
+const Background = require("../models/Background");
 
 const DEFAULT_EXPERIENCE_STATES = {
   "strategy-forecast": {
@@ -189,7 +190,17 @@ const socketHandler = (io) => {
       }
     };
 
+    const sendInitialBackgrounds = async (target = io) => {
+      try {
+        const backgrounds = await Background.find({ isActive: true }).sort("layer");
+        target.emit("backgroundUpdate", backgrounds);
+      } catch (error) {
+        console.error("Failed to send backgrounds on init:", error);
+      }
+    };
+
     await sendInitialMedia();
+    await sendInitialBackgrounds();
 
     socket.on("register", async (role) => {
       socket.role = role;
@@ -198,6 +209,7 @@ const socketHandler = (io) => {
       try {
         const media = await DisplayMedia.find();
         socket.emit("mediaUpdate", media);
+        await sendInitialBackgrounds(socket);
       } catch (error) {
         console.error("Failed to emit media on register:", error);
       }
