@@ -5,6 +5,7 @@ const env = require("./src/config/env");
 const socketHandler = require("./src/socket/socketEvents");
 const displayMediaController = require("./src/controllers/displayMediaController");
 const backgroundController = require("./src/controllers/backgroundController");
+const categoryController = require("./src/controllers/categoryController");
 
 const PORT = env.server.port;
 
@@ -22,6 +23,7 @@ socketHandler(io);
 // Pass `io` to controllers that need real-time updates
 displayMediaController.setSocketIo(io);
 backgroundController.setSocketIo(io);
+categoryController.setSocketIo(io);
 
 module.exports = { server, io };
 

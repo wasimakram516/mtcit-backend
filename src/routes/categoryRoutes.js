@@ -5,8 +5,22 @@ const { protect, adminOnly } = require('../middlewares/authMiddleware');
 const upload = require("../middlewares/uploadMiddleware");
 
 router.get('/', categoryController.listCategories);
-router.post('/', upload.single("icon"), categoryController.createCategory);
-router.put('/:id', upload.single("icon"), categoryController.updateCategory);
+router.post(
+  '/',
+  upload.fields([
+    { name: "icon", maxCount: 1 },
+    { name: "mapQr", maxCount: 1 },
+  ]),
+  categoryController.createCategory
+);
+router.put(
+  '/:id',
+  upload.fields([
+    { name: "icon", maxCount: 1 },
+    { name: "mapQr", maxCount: 1 },
+  ]),
+  categoryController.updateCategory
+);
 router.delete('/:id', categoryController.deleteCategory);
 
 module.exports = router;
