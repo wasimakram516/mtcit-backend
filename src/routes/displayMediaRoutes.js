@@ -5,8 +5,6 @@ const {
   deleteDisplayMedia,
   getDisplayMedia,
   getMediaById,
-  getMediaBySlug,
-  listMediaByLeafCategory,
 } = require("../controllers/displayMediaController");
 
 const { protect, adminOnly } = require("../middlewares/authMiddleware");
@@ -15,8 +13,6 @@ const upload = require("../middlewares/uploadMiddleware");
 const router = express.Router();
 
 router.get("/", getDisplayMedia);
-router.get("/by-slug/:slug", getMediaBySlug);
-router.get("/by-category/:leafId", listMediaByLeafCategory);
 router.get("/:id", getMediaById);
 
 router.post(

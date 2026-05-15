@@ -31,6 +31,11 @@ const CategorySchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: {},
     },
+    // ordering for display within siblings — lower = first (oldest first, newest last)
+    sortOrder: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true }
 );

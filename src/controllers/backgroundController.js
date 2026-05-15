@@ -41,47 +41,63 @@ exports.getActiveBackgrounds = asyncHandler(async (req, res) => {
   );
 });
 
-// Create background image
+const parseJsonField = (value, fallback) => {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (typeof value === "object") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+};
+
+const clamp01 = (value, fallback = 0) => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(1, Math.max(0, n));
+};
+
+// Create background slide
 exports.createBackground = asyncHandler(async (req, res) => {
-  const { title, description, position, size, opacity, rotation, typeEn, typeAr } = req.body;
+  const {
+    title,
+    displayTitle,
+    opacity,
+    darkOverlay,
+    lightOverlay,
+    titlePosition,
+    typeEn,
+    typeAr,
+    isActive,
+  } = req.body;
 
-  const parseJsonField = (value, fallback) => {
-    if (value === undefined || value === null || value === "") return fallback;
-    if (typeof value === "object") return value;
-    try {
-      return JSON.parse(value);
-    } catch {
-      return fallback;
-    }
-  };
-
-  const normalizedPosition = parseJsonField(position, { x: 0, y: 0 });
-  const normalizedSize = parseJsonField(size, { width: 100, height: 100 });
+  const normalizedTitlePosition = parseJsonField(titlePosition, { x: 50, y: 50 });
 
   const highestLayer = await Background.findOne().sort({ layer: -1 });
   let nextLayer = highestLayer ? highestLayer.layer + 1 : 0;
 
   const createdBackgrounds = [];
 
-  // Check for bulk creation first
   const bulkFiles = req.files?.images || [];
   if (bulkFiles.length > 0) {
     for (const [index, file] of bulkFiles.entries()) {
-      const { fileUrl } = await uploadToS3(file, STORAGE_ROOT, {
-        inline: true,
-      });
-      const baseTitle = title?.trim() || file.originalname.replace(/\.[^/.]+$/, "");
+      const { fileUrl } = await uploadToS3(file, STORAGE_ROOT, { inline: true });
+      const baseTitle =
+        (displayTitle || title)?.trim() || file.originalname.replace(/\.[^/.]+$/, "");
 
       const background = new Background({
-        title: bulkFiles.length > 1 ? `${baseTitle} ${index + 1}` : baseTitle,
-        description,
+        displayTitle: bulkFiles.length > 1 ? `${baseTitle} ${index + 1}` : baseTitle,
         imageUrl: fileUrl,
         imageUrlEn: fileUrl,
         layer: nextLayer,
-        position: normalizedPosition,
-        size: normalizedSize,
-        opacity: opacity !== undefined ? Number(opacity) : 1,
-        rotation: rotation !== undefined ? Number(rotation) : 0,
+        opacity: opacity !== undefined ? clamp01(opacity, 1) : 1,
+        darkOverlay: darkOverlay !== undefined ? clamp01(darkOverlay, 0) : 0,
+        lightOverlay: lightOverlay !== undefined ? clamp01(lightOverlay, 0) : 0,
+        titlePosition: {
+          x: Math.min(100, Math.max(0, Number(normalizedTitlePosition.x) || 50)),
+          y: Math.min(100, Math.max(0, Number(normalizedTitlePosition.y) || 50)),
+        },
+        isActive: isActive !== undefined ? Boolean(isActive) : true,
       });
 
       await background.save();
@@ -89,7 +105,6 @@ exports.createBackground = asyncHandler(async (req, res) => {
       nextLayer += 1;
     }
   } else {
-    // Single creation with En/Ar support
     const fileEn = req.files?.imageEn?.[0] || req.files?.image?.[0];
     const fileAr = req.files?.imageAr?.[0];
 
@@ -101,32 +116,31 @@ exports.createBackground = asyncHandler(async (req, res) => {
     let imageUrlAr = "";
 
     if (fileEn) {
-      const { fileUrl } = await uploadToS3(fileEn, STORAGE_ROOT, {
-        inline: true,
-      });
+      const { fileUrl } = await uploadToS3(fileEn, STORAGE_ROOT, { inline: true });
       imageUrlEn = fileUrl;
     }
 
     if (fileAr) {
-      const { fileUrl } = await uploadToS3(fileAr, STORAGE_ROOT, {
-        inline: true,
-      });
+      const { fileUrl } = await uploadToS3(fileAr, STORAGE_ROOT, { inline: true });
       imageUrlAr = fileUrl;
     }
 
     const background = new Background({
-      title: title?.trim() || "Untitled Background",
-      description,
-      imageUrl: imageUrlEn || imageUrlAr, // Legacy fallback
+      displayTitle: (displayTitle || title)?.trim() || "",
+      imageUrl: imageUrlEn || imageUrlAr,
       imageUrlEn,
       imageUrlAr,
       typeEn: typeEn || "image",
       typeAr: typeAr || "image",
       layer: nextLayer,
-      position: normalizedPosition,
-      size: normalizedSize,
-      opacity: opacity !== undefined ? Number(opacity) : 1,
-      rotation: rotation !== undefined ? Number(rotation) : 0,
+      opacity: opacity !== undefined ? clamp01(opacity, 1) : 1,
+      darkOverlay: darkOverlay !== undefined ? clamp01(darkOverlay, 0) : 0,
+      lightOverlay: lightOverlay !== undefined ? clamp01(lightOverlay, 0) : 0,
+      titlePosition: {
+        x: Math.min(100, Math.max(0, Number(normalizedTitlePosition.x) || 50)),
+        y: Math.min(100, Math.max(0, Number(normalizedTitlePosition.y) || 50)),
+      },
+      isActive: isActive !== undefined ? Boolean(isActive) : true,
     });
 
     await background.save();
@@ -146,8 +160,20 @@ exports.createBackground = asyncHandler(async (req, res) => {
 // Update background image
 exports.updateBackground = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { title, description, position, size, opacity, rotation, layer, isActive, typeEn, typeAr, removeImageEn, removeImageAr } =
-    req.body;
+  const {
+    title,
+    displayTitle,
+    opacity,
+    darkOverlay,
+    lightOverlay,
+    titlePosition,
+    layer,
+    isActive,
+    typeEn,
+    typeAr,
+    removeImageEn,
+    removeImageAr,
+  } = req.body;
 
   const background = await Background.findById(id);
   if (!background) {
@@ -195,18 +221,22 @@ exports.updateBackground = asyncHandler(async (req, res) => {
     background.imageUrlAr = fileUrl;
   }
 
-  // Update fields
-  if (title) background.title = title;
-  if (description !== undefined) background.description = description;
-  if (position) {
-    background.position = typeof position === "string" ? JSON.parse(position) : position;
+  if (displayTitle !== undefined || title !== undefined) {
+    background.displayTitle = (displayTitle || title || "").trim();
+    background.markModified("displayTitle");
   }
-  if (size) {
-    background.size = typeof size === "string" ? JSON.parse(size) : size;
+  if (titlePosition) {
+    const tp = typeof titlePosition === "string" ? JSON.parse(titlePosition) : titlePosition;
+    background.titlePosition = {
+      x: Math.min(100, Math.max(0, Number(tp.x) || 50)),
+      y: Math.min(100, Math.max(0, Number(tp.y) || 50)),
+    };
+    background.markModified("titlePosition");
   }
-  if (opacity !== undefined) background.opacity = opacity;
-  if (rotation !== undefined) background.rotation = rotation;
-  if (layer !== undefined) background.layer = layer;
+  if (opacity !== undefined) background.opacity = clamp01(opacity, background.opacity);
+  if (darkOverlay !== undefined) background.darkOverlay = clamp01(darkOverlay, 0);
+  if (lightOverlay !== undefined) background.lightOverlay = clamp01(lightOverlay, 0);
+  if (layer !== undefined) background.layer = Number(layer);
   if (isActive !== undefined) background.isActive = isActive;
   if (typeEn !== undefined) background.typeEn = typeEn;
   if (typeAr !== undefined) background.typeAr = typeAr;

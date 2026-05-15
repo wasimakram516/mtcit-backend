@@ -1,7 +1,6 @@
 const mongoose = require("mongoose");
 const DisplayMedia = require("../models/DisplayMedia");
 const Category = require("../models/Category");
-const { normalizeSlug } = require("../utils/slugify");
 
 const DEFAULT_EXPERIENCE_STATES = {
   "strategy-forecast": {
@@ -11,21 +10,6 @@ const DEFAULT_EXPERIENCE_STATES = {
     yearIndex: 9,
   },
   "map-embed": {},
-};
-
-const toDisplayMediaPayload = (media) => {
-  if (!media) return null;
-  const m = media.toObject ? media.toObject({ flattenMaps: true }) : { ...media };
-  return {
-    _id: m._id,
-    slug: m.slug,
-    title: m.title,
-    categoryPath: m.categoryPath,
-    categoryRef: m.categoryRef,
-    layers: m.layers || [],
-    mediaLayers: m.mediaLayers || [],
-    pinpoint: m.pinpoint,
-  };
 };
 
 const getExperienceFromCategory = (categoryDoc) => {
@@ -143,7 +127,8 @@ const socketHandler = (io) => {
         const count = await Category.countDocuments();
         if (!count) return null;
 
-        const all = await Category.find().lean().sort({ depth: 1, "name.en": 1 });
+        const all = await Category.find().lean().sort({ sortOrder: 1, createdAt: 1 });
+
         const map = {};
         all.forEach((category) => {
           map[category._id] = { ...category, children: [] };
@@ -158,6 +143,16 @@ const socketHandler = (io) => {
             roots.push(map[category._id]);
           }
         });
+
+        // Ensure children are sorted by sortOrder asc (lower first = oldest first) recursively
+        const sortRec = (nodes) => {
+          nodes.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+          nodes.forEach((n) => {
+            if (n.children && n.children.length) sortRec(n.children);
+          });
+        };
+
+        sortRec(roots);
 
         return roots;
       } catch (err) {
@@ -229,7 +224,7 @@ const socketHandler = (io) => {
         activeExperienceState = {};
 
         if (!Array.isArray(categoryPath) || categoryPath.length === 0) {
-          io.emit("categoryMediaList", { categoryPath: [], leafId: null, items: [] });
+          io.emit("displayMedia", null);
           return;
         }
 
@@ -253,23 +248,8 @@ const socketHandler = (io) => {
           return;
         }
 
-        const rows = await DisplayMedia.find({ categoryRef: leafObjectId })
-          .select("slug title _id")
-          .sort({ title: 1 })
-          .lean();
-
-        const items = rows.map((row) => ({
-          slug: row.slug,
-          title: row.title,
-          _id: String(row._id),
-        }));
-
-        io.emit("categoryMediaList", {
-          categoryPath,
-          leafId: String(leafId),
-          language: language || "en",
-          items,
-        });
+        const media = await DisplayMedia.findOne({ categoryRef: leafObjectId }).lean();
+        io.emit("displayMedia", media || null);
       } catch (err) {
         console.error("selectCategory:", err);
         io.emit("categoryMediaList", { categoryPath: [], leafId: null, items: [] });

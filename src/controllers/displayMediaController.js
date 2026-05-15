@@ -1,7 +1,6 @@
 const mongoose = require("mongoose");
 const DisplayMedia = require("../models/DisplayMedia");
 const response = require("../utils/response");
-const { normalizeSlug } = require("../utils/slugify");
 const { deleteFromS3, uploadToS3 } = require("../utils/s3Storage");
 const asyncHandler = require("../middlewares/asyncHandler");
 
@@ -50,8 +49,8 @@ const buildLayerRecord = async (layerMeta = {}, uploadedFileEn, uploadedFileAr) 
   return {
     fileEn: { type: typeEn, url: urlEn },
     fileAr: { type: typeAr, url: urlAr },
-    title: layerMeta.title || "",
-    description: layerMeta.description || "",
+    title: String(layerMeta.title || "").trim(),
+    description: String(layerMeta.description || "").trim(),
     position: {
       x: normalizeNumber(layerMeta.position?.x, 0),
       y: normalizeNumber(layerMeta.position?.y, 0),
@@ -103,6 +102,92 @@ const buildLayerArray = async (layerMetaList, uploadedFilesEn = [], uploadedFile
   return result;
 };
 
+const clamp01 = (value, fallback = 0) => {
+  const n = normalizeNumber(value, fallback);
+  return Math.min(1, Math.max(0, n));
+};
+
+const buildBackgroundSlideRecord = async (meta = {}, uploadedFileEn, uploadedFileAr, sequence = 0) => {
+  let urlEn =
+    meta.removeEn === "true" || meta.removeEn === true ? "" : meta.existingUrlEn || meta.existingUrl || "";
+  let typeEn = meta.typeEn || meta.type || "image";
+  let urlAr = meta.removeAr === "true" || meta.removeAr === true ? "" : meta.existingUrlAr || "";
+  let typeAr = meta.typeAr || "image";
+
+  if (uploadedFileEn) {
+    const { fileUrl } = await uploadToS3(uploadedFileEn, STORAGE_ROOT, { inline: true });
+    urlEn = fileUrl;
+    typeEn = getMediaType(uploadedFileEn.mimetype);
+  }
+
+  if (uploadedFileAr) {
+    const { fileUrl } = await uploadToS3(uploadedFileAr, STORAGE_ROOT, { inline: true });
+    urlAr = fileUrl;
+    typeAr = getMediaType(uploadedFileAr.mimetype);
+  }
+
+  if (!urlEn && !urlAr) return null;
+
+  return {
+    fileEn: { type: typeEn, url: urlEn },
+    fileAr: { type: typeAr, url: urlAr },
+    opacity: clamp01(meta.opacity, 1),
+    darkOverlay: clamp01(meta.darkOverlay, 0),
+    lightOverlay: clamp01(meta.lightOverlay, 0),
+    displayTitle: String(meta.displayTitle ?? meta.title ?? "").trim(),
+    titlePosition: (() => {
+      const raw = meta.titlePosition;
+      const tp =
+        typeof raw === "string"
+          ? (() => {
+              try {
+                return JSON.parse(raw);
+              } catch {
+                return {};
+              }
+            })()
+          : raw || {};
+      return {
+        x: Math.min(100, Math.max(0, normalizeNumber(tp.x, 50))),
+        y: Math.min(100, Math.max(0, normalizeNumber(tp.y, 50))),
+      };
+    })(),
+    sequence,
+    isActive: meta.isActive !== undefined ? Boolean(meta.isActive) : true,
+  };
+};
+
+const buildBackgroundSlideArray = async (metaList, uploadedFilesEn = [], uploadedFilesAr = []) => {
+  const result = [];
+  for (let i = 0; i < metaList.length; i++) {
+    const meta = metaList[i];
+    const fileIndexEnValue = meta.fileIndexEn ?? meta.fileIndex;
+    const fileIndexArValue = meta.fileIndexAr;
+
+    const fileIndexEn =
+      fileIndexEnValue !== null && fileIndexEnValue !== undefined && fileIndexEnValue !== ""
+        ? Number(fileIndexEnValue)
+        : null;
+    const fileIndexAr =
+      fileIndexArValue !== null && fileIndexArValue !== undefined && fileIndexArValue !== ""
+        ? Number(fileIndexArValue)
+        : null;
+
+    const uploadedFileEn =
+      fileIndexEn !== null && Number.isInteger(fileIndexEn) && uploadedFilesEn[fileIndexEn]
+        ? uploadedFilesEn[fileIndexEn]
+        : null;
+    const uploadedFileAr =
+      fileIndexAr !== null && Number.isInteger(fileIndexAr) && uploadedFilesAr[fileIndexAr]
+        ? uploadedFilesAr[fileIndexAr]
+        : null;
+
+    const slide = await buildBackgroundSlideRecord(meta, uploadedFileEn, uploadedFileAr, i);
+    if (slide) result.push(slide);
+  }
+  return result;
+};
+
 /**
  * Collect all S3 URLs from a layers array.
  */
@@ -133,31 +218,8 @@ const emitMediaUpdate = async () => {
 
 // ✅ Get all media
 exports.getDisplayMedia = asyncHandler(async (req, res) => {
-  const items = await DisplayMedia.find().sort({ title: 1, createdAt: -1 });
+  const items = await DisplayMedia.find().sort({ createdAt: -1 });
   return response(res, 200, items.length ? "Media fetched." : "No media found.", items);
-});
-
-/** List { slug, title, _id } for a leaf category (controller picker). */
-exports.listMediaByLeafCategory = asyncHandler(async (req, res) => {
-  const { leafId } = req.params;
-  if (!mongoose.Types.ObjectId.isValid(leafId)) {
-    return response(res, 400, "Invalid category id.");
-  }
-  const oid = new mongoose.Types.ObjectId(leafId);
-  const items = await DisplayMedia.find({ categoryRef: oid })
-    .select("slug title _id")
-    .sort({ title: 1 })
-    .lean();
-  return response(res, 200, "Media for category.", items);
-});
-
-/** Single doc by globally unique slug */
-exports.getMediaBySlug = asyncHandler(async (req, res) => {
-  const slug = normalizeSlug(req.params.slug);
-  if (!slug) return response(res, 400, "Invalid slug.");
-  const media = await DisplayMedia.findOne({ slug });
-  if (!media) return response(res, 404, "Media not found.");
-  return response(res, 200, "Media retrieved.", media);
 });
 
 // ✅ Get a single media item
@@ -188,17 +250,7 @@ exports.createDisplayMedia = asyncHandler(async (req, res) => {
 
   console.log("📝 createDisplayMedia received:", { categoryPath, rawCategoryPath });
 
-  const title = (req.body.title || "").trim();
-  const slug = normalizeSlug(req.body.slug || req.body.title || "");
-  if (!title) return response(res, 400, "Title is required.");
-  if (!slug) return response(res, 400, "Slug is required. Use letters, numbers, and hyphens.");
-  if (await DisplayMedia.findOne({ slug }).select("_id").lean()) {
-    return response(res, 409, "This slug is already in use.");
-  }
-
   const mediaObj = {
-    title,
-    slug,
     categoryPath: categoryPath.length ? categoryPath : undefined,
     categoryRef: categoryPath.length ? categoryPath[categoryPath.length - 1] : undefined,
     layers: [],
@@ -208,7 +260,7 @@ exports.createDisplayMedia = asyncHandler(async (req, res) => {
   // ── Background layers ──────────────────────────────────────────────────────
   const layerMetaList = parseJsonArray(req.body.layers);
   if (layerMetaList.length > 0) {
-    mediaObj.layers = await buildLayerArray(
+    mediaObj.layers = await buildBackgroundSlideArray(
       layerMetaList,
       req.files?.mediaLayers || [],
       req.files?.mediaLayersAr || []
@@ -238,7 +290,6 @@ exports.createDisplayMedia = asyncHandler(async (req, res) => {
   try {
     media = await DisplayMedia.create(mediaObj);
   } catch (err) {
-    if (err?.code === 11000) return response(res, 409, "This slug is already in use.");
     throw err;
   }
   await emitMediaUpdate();
@@ -251,22 +302,6 @@ exports.updateDisplayMedia = asyncHandler(async (req, res) => {
   if (!item) return response(res, 404, "Media item not found.");
 
   const { pinpointX, pinpointY, removePinpoint } = req.body;
-
-  if (req.body.title !== undefined) {
-    const nextTitle = String(req.body.title).trim();
-    if (!nextTitle) return response(res, 400, "Title cannot be empty.");
-    item.title = nextTitle;
-  }
-
-  if (req.body.slug !== undefined) {
-    const nextSlug = normalizeSlug(req.body.slug);
-    if (!nextSlug) return response(res, 400, "Slug cannot be empty.");
-    if (nextSlug !== item.slug) {
-      const taken = await DisplayMedia.findOne({ slug: nextSlug, _id: { $ne: item._id } }).lean();
-      if (taken) return response(res, 409, "This slug is already in use.");
-      item.slug = nextSlug;
-    }
-  }
 
   // ── Category path ──────────────────────────────────────────────────────────
   const rawCategoryPath = req.body.categoryPath;
@@ -332,13 +367,12 @@ exports.updateDisplayMedia = asyncHandler(async (req, res) => {
   // ── Background layers ──────────────────────────────────────────────────────
   const layerMetaList = req.body.layers !== undefined ? parseJsonArray(req.body.layers) : null;
   if (layerMetaList !== null) {
-    const nextLayers = await buildLayerArray(
+    const nextLayers = await buildBackgroundSlideArray(
       layerMetaList,
       req.files?.mediaLayers || [],
       req.files?.mediaLayersAr || []
     );
 
-    // Clean up S3 files that are no longer referenced
     const nextUrls = collectLayerUrls(nextLayers);
     const prevUrls = collectLayerUrls(item.layers || []);
     for (const url of prevUrls) {
@@ -346,6 +380,7 @@ exports.updateDisplayMedia = asyncHandler(async (req, res) => {
     }
 
     item.layers = nextLayers;
+    item.markModified("layers");
   }
 
   // ── Media content layers ───────────────────────────────────────────────────
@@ -365,12 +400,18 @@ exports.updateDisplayMedia = asyncHandler(async (req, res) => {
     }
 
     item.mediaLayers = nextMediaLayers;
+    item.markModified("mediaLayers");
   }
 
   try {
     await item.save();
   } catch (err) {
-    if (err?.code === 11000) return response(res, 409, "This slug is already in use.");
+    if (err?.name === "ValidationError") {
+      const detail = Object.values(err.errors || {})
+        .map((e) => e.message)
+        .join("; ");
+      return response(res, 400, detail || "Validation failed.", null);
+    }
     throw err;
   }
   await emitMediaUpdate();

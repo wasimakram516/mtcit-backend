@@ -5,6 +5,7 @@ const { protect, adminOnly } = require('../middlewares/authMiddleware');
 const upload = require("../middlewares/uploadMiddleware");
 
 router.get('/', categoryController.listCategories);
+router.post('/reorder', protect, adminOnly, categoryController.reorderCategories);
 router.post(
   '/',
   upload.fields([

@@ -1,83 +1,26 @@
 const mongoose = require("mongoose");
 
-const BackgroundImageSchema = new mongoose.Schema(
+/** Global idle background slide — loops on big screen when no display media is active */
+const BackgroundSchema = new mongoose.Schema(
   {
-    title: {
-      type: String,
-      required: true,
-      trim: true,
+    imageUrl: { type: String },
+    imageUrlEn: { type: String },
+    imageUrlAr: { type: String },
+    typeEn: { type: String, enum: ["image", "video"], default: "image" },
+    typeAr: { type: String, enum: ["image", "video"], default: "image" },
+    /** Playback order (0 = first in loop) */
+    layer: { type: Number, required: true, default: 0 },
+    opacity: { type: Number, default: 1, min: 0, max: 1 },
+    darkOverlay: { type: Number, default: 0, min: 0, max: 1 },
+    lightOverlay: { type: Number, default: 0, min: 0, max: 1 },
+    displayTitle: { type: String, default: "" },
+    titlePosition: {
+      x: { type: Number, default: 50, min: 0, max: 100 },
+      y: { type: Number, default: 50, min: 0, max: 100 },
     },
-    description: {
-      type: String,
-    },
-    imageUrl: {
-      type: String,
-    },
-    imageUrlEn: {
-      type: String,
-    },
-    imageUrlAr: {
-      type: String,
-    },
-    typeEn: {
-      type: String,
-      enum: ["image", "video"],
-      default: "image",
-    },
-    typeAr: {
-      type: String,
-      enum: ["image", "video"],
-      default: "image",
-    },
-    layer: {
-      type: Number,
-      required: true,
-      default: 0,
-    },
-    position: {
-      x: {
-        type: Number,
-        default: 0,
-        min: 0,
-        max: 100,
-      },
-      y: {
-        type: Number,
-        default: 0,
-        min: 0,
-        max: 100,
-      },
-    },
-    size: {
-      width: {
-        type: Number,
-        default: 100,
-        min: 10,
-        max: 100,
-      },
-      height: {
-        type: Number,
-        default: 100,
-        min: 10,
-        max: 100,
-      },
-    },
-    opacity: {
-      type: Number,
-      default: 1,
-      min: 0,
-      max: 1,
-    },
-    isActive: {
-      type: Boolean,
-      default: true,
-    },
-    rotation: {
-      type: Number,
-      default: 0,
-    },
+    isActive: { type: Boolean, default: true },
   },
   { timestamps: true }
 );
 
-module.exports = mongoose.model("Background", BackgroundImageSchema);
+module.exports = mongoose.model("Background", BackgroundSchema);

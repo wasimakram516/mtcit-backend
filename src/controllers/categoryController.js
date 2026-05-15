@@ -29,6 +29,16 @@ const buildTree = (items) => {
       roots.push(map[it._id]);
     }
   });
+
+  // sort children by sortOrder asc (lower first = oldest first) recursively
+  const sortRec = (nodes) => {
+    nodes.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+    nodes.forEach((n) => {
+      if (n.children && n.children.length) sortRec(n.children);
+    });
+  };
+  sortRec(roots);
+
   return roots;
 };
 
@@ -43,9 +53,20 @@ exports.setSocketIo = (socketIoInstance) => {
 };
 
 exports.listCategories = asyncHandler(async (req, res) => {
-  const all = await Category.find().lean().sort({ depth: 1, "name.en": 1 });
+  // fetch all and build a sibling-sorted tree by sortOrder (ascending: oldest first, newest last)
+  const all = await Category.find().lean().sort({ sortOrder: 1, createdAt: 1 });
   const tree = buildTree(all);
   res.json({ success: true, data: tree });
+});
+
+// Bulk reorder categories: accepts [{ id, sortOrder }]
+exports.reorderCategories = asyncHandler(async (req, res) => {
+  const list = req.body;
+  if (!Array.isArray(list)) return res.status(400).json({ success: false, message: "Invalid payload" });
+  const ops = list.map((it) => ({ updateOne: { filter: { _id: it.id }, update: { $set: { sortOrder: Number(it.sortOrder) || 0 } } } }));
+  if (ops.length === 0) return res.json({ success: true });
+  await Category.bulkWrite(ops);
+  res.json({ success: true });
 });
 
 exports.createCategory = asyncHandler(async (req, res) => {
@@ -84,15 +105,16 @@ exports.createCategory = asyncHandler(async (req, res) => {
       },
     };
   }
-
+ 
+  // Calculate sortOrder: append new category at end (max of siblings + 1)
   if (parent && parent !== "null") {
-    const parentDoc = await Category.findById(parent);
-    if (!parentDoc) return res.status(400).json({ success: false, message: "Parent not found" });
-    cat.path = [...(parentDoc.path || []), parentDoc._id];
-    cat.depth = (parentDoc.depth || 0) + 1;
+    const siblings = await Category.find({ parent }).sort({ sortOrder: 1 });
+    const maxSort = siblings.length > 0 ? Math.max(...siblings.map(s => s.sortOrder || 0)) : -1;
+    cat.sortOrder = maxSort + 1;
   } else {
-    cat.path = [];
-    cat.depth = 0;
+    const roots = await Category.find({ parent: null }).sort({ sortOrder: 1 });
+    const maxSort = roots.length > 0 ? Math.max(...roots.map(r => r.sortOrder || 0)) : -1;
+    cat.sortOrder = maxSort + 1;
   }
 
   await cat.save();
