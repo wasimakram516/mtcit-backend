@@ -222,6 +222,11 @@ const socketHandler = (io) => {
       }
     });
 
+    socket.on("bigScreenReady", () => {
+      // Big screen media finished loading — tell all controllers to clear their pending ring
+      io.emit("bigScreenReady");
+    });
+
     socket.on("changeLanguage", (language) => {
       console.log(`Language changed to: ${language}`);
       io.emit("languageChanged", language);
@@ -233,16 +238,20 @@ const socketHandler = (io) => {
       const REVEAL_DELAY_MS = 1800; // intentional delay so loader animations are visible
 
       try {
-        io.emit("categorySelected");
-        io.emit("displayMedia", null);
-        io.emit("displayExperience", null);
         activeExperience = null;
         activeExperienceState = {};
 
+        // Empty path = reset to neutral — just clear, no loading animation needed
         if (!Array.isArray(categoryPath) || categoryPath.length === 0) {
           io.emit("displayMedia", null);
+          io.emit("displayExperience", null);
           return;
         }
+
+        // Real selection — trigger loading animations on big screen and controller
+        io.emit("categorySelected");
+        io.emit("displayMedia", null);
+        io.emit("displayExperience", null);
 
         const leafId = categoryPath[categoryPath.length - 1];
         const leafObjectId = new mongoose.Types.ObjectId(leafId);
