@@ -230,6 +230,8 @@ const socketHandler = (io) => {
     socket.on("selectCategory", async ({ categoryPath, language }) => {
       console.log(`selectCategory | Lang: ${language}`, categoryPath);
 
+      const REVEAL_DELAY_MS = 1800; // intentional delay so loader animations are visible
+
       try {
         io.emit("categorySelected");
         io.emit("displayMedia", null);
@@ -257,12 +259,15 @@ const socketHandler = (io) => {
             language: language || "en",
             items: [],
           });
+
+          await new Promise((r) => setTimeout(r, REVEAL_DELAY_MS));
           io.emit("displayExperience", activeExperience);
           io.emit("experienceStateChanged", activeExperienceState);
           return;
         }
 
         const media = await DisplayMedia.findOne({ categoryRef: leafObjectId }).lean();
+        await new Promise((r) => setTimeout(r, REVEAL_DELAY_MS));
         io.emit("displayMedia", media || null);
       } catch (err) {
         console.error("selectCategory:", err);
@@ -274,9 +279,12 @@ const socketHandler = (io) => {
 
     socket.on("selectMedia", async ({ slug, language }) => {
       console.log(`selectMedia slug=${slug}`);
+      const REVEAL_DELAY_MS = 1800;
       try {
         activeExperience = null;
         activeExperienceState = {};
+        io.emit("categorySelected");
+        io.emit("displayMedia", null);
         io.emit("displayExperience", null);
 
         const normalized = normalizeSlug(slug);
@@ -292,6 +300,7 @@ const socketHandler = (io) => {
           io.emit("displayMedia", null);
           return;
         }
+        await new Promise((r) => setTimeout(r, REVEAL_DELAY_MS));
         io.emit("displayMedia", toDisplayMediaPayload(media));
         if (language) {
           io.emit("languageChanged", language);
