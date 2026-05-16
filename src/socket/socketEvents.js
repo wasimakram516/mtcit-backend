@@ -253,14 +253,15 @@ const socketHandler = (io) => {
           activeExperience = categoryExperience;
           activeExperienceState = getDefaultExperienceState(categoryExperience);
 
+          // Delay before revealing — controller shows loading ring, big screen shows logo loader
+          await new Promise((r) => setTimeout(r, REVEAL_DELAY_MS));
+
           io.emit("categoryMediaList", {
             categoryPath,
             leafId: String(leafId),
             language: language || "en",
             items: [],
           });
-
-          await new Promise((r) => setTimeout(r, REVEAL_DELAY_MS));
           io.emit("displayExperience", activeExperience);
           io.emit("experienceStateChanged", activeExperienceState);
           return;
