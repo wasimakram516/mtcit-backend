@@ -13,7 +13,10 @@ const BackgroundSchema = new mongoose.Schema(
     opacity: { type: Number, default: 1, min: 0, max: 1 },
     darkOverlay: { type: Number, default: 0, min: 0, max: 1 },
     lightOverlay: { type: Number, default: 0, min: 0, max: 1 },
-    displayTitle: { type: String, default: "" },
+    displayTitle: {
+      en: { type: String, default: "" },
+      ar: { type: String, default: "" },
+    },
     titleFontSize: { type: Number, default: 56, min: 24, max: 120 },
     titlePosition: {
       x: { type: Number, default: 50, min: 0, max: 100 },

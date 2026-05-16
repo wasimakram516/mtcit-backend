@@ -68,6 +68,8 @@ exports.createBackground = asyncHandler(async (req, res) => {
   const {
     title,
     displayTitle,
+    displayTitleEn,
+    displayTitleAr,
     opacity,
     darkOverlay,
     lightOverlay,
@@ -90,10 +92,11 @@ exports.createBackground = asyncHandler(async (req, res) => {
     for (const [index, file] of bulkFiles.entries()) {
       const { fileUrl } = await uploadToS3(file, STORAGE_ROOT, { inline: true });
       const baseTitle =
-        (displayTitle || title)?.trim() || file.originalname.replace(/\.[^/.]+$/, "");
+        (displayTitleEn || displayTitle || title)?.trim() || file.originalname.replace(/\.[^/.]+$/, "");
+      const baseTitleFinal = bulkFiles.length > 1 ? `${baseTitle} ${index + 1}` : baseTitle;
 
       const background = new Background({
-        displayTitle: bulkFiles.length > 1 ? `${baseTitle} ${index + 1}` : baseTitle,
+        displayTitle: { en: baseTitleFinal, ar: displayTitleAr?.trim() || "" },
         imageUrl: fileUrl,
         imageUrlEn: fileUrl,
         layer: nextLayer,
@@ -134,7 +137,10 @@ exports.createBackground = asyncHandler(async (req, res) => {
     }
 
     const background = new Background({
-      displayTitle: (displayTitle || title)?.trim() || "",
+      displayTitle: {
+        en: (displayTitleEn || displayTitle || title)?.trim() || "",
+        ar: (displayTitleAr || "")?.trim(),
+      },
       imageUrl: imageUrlEn || imageUrlAr,
       imageUrlEn,
       imageUrlAr,
@@ -172,6 +178,8 @@ exports.updateBackground = asyncHandler(async (req, res) => {
   const {
     title,
     displayTitle,
+    displayTitleEn,
+    displayTitleAr,
     opacity,
     darkOverlay,
     lightOverlay,
@@ -231,8 +239,17 @@ exports.updateBackground = asyncHandler(async (req, res) => {
     background.imageUrlAr = fileUrl;
   }
 
-  if (displayTitle !== undefined || title !== undefined) {
-    background.displayTitle = (displayTitle || title || "").trim();
+  if (displayTitleEn !== undefined || displayTitleAr !== undefined || displayTitle !== undefined || title !== undefined) {
+    const existingEn = typeof background.displayTitle === "object"
+      ? (background.displayTitle?.en || "")
+      : (background.displayTitle || "");
+    const existingAr = typeof background.displayTitle === "object"
+      ? (background.displayTitle?.ar || "")
+      : "";
+    background.displayTitle = {
+      en: displayTitleEn !== undefined ? displayTitleEn.trim() : (displayTitle !== undefined || title !== undefined ? (displayTitle || title || "").trim() : existingEn),
+      ar: displayTitleAr !== undefined ? displayTitleAr.trim() : existingAr,
+    };
     background.markModified("displayTitle");
   }
   if (titlePosition) {
