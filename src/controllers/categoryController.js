@@ -88,24 +88,30 @@ exports.createCategory = asyncHandler(async (req, res) => {
   });
 
   const iconFile = getUploadedFile(req, "icon");
-  const mapQrFile = getUploadedFile(req, "mapQr");
+  const mapQrEnFile = getUploadedFile(req, "mapQrEn") || getUploadedFile(req, "mapQr");
+  const mapQrArFile = getUploadedFile(req, "mapQrAr");
 
   if (iconFile) {
     const { fileUrl } = await uploadToS3(iconFile, STORAGE_ROOT, { inline: true });
     cat.icon = fileUrl;
   }
 
-  if (mapQrFile) {
-    const { fileUrl } = await uploadToS3(mapQrFile, STORAGE_ROOT, { inline: true });
+  if (mapQrEnFile) {
+    const { fileUrl } = await uploadToS3(mapQrEnFile, STORAGE_ROOT, { inline: true });
     cat.metadata = {
       ...(cat.metadata || {}),
-      mapEmbed: {
-        ...(cat.metadata?.mapEmbed || {}),
-        qrImageUrl: fileUrl,
-      },
+      mapEmbed: { ...(cat.metadata?.mapEmbed || {}), qrImageUrlEn: fileUrl },
     };
   }
- 
+
+  if (mapQrArFile) {
+    const { fileUrl } = await uploadToS3(mapQrArFile, STORAGE_ROOT, { inline: true });
+    cat.metadata = {
+      ...(cat.metadata || {}),
+      mapEmbed: { ...(cat.metadata?.mapEmbed || {}), qrImageUrlAr: fileUrl },
+    };
+  }
+
   // Calculate sortOrder: append new category at end (max of siblings + 1)
   if (parent && parent !== "null") {
     const siblings = await Category.find({ parent }).sort({ sortOrder: 1 });
@@ -137,7 +143,9 @@ exports.updateCategory = asyncHandler(async (req, res) => {
   if (!cat) return res.status(404).json({ success: false, message: "Category not found" });
 
   const iconFile = getUploadedFile(req, "icon");
-  const mapQrFile = getUploadedFile(req, "mapQr");
+  const mapQrEnFile = getUploadedFile(req, "mapQrEn") || getUploadedFile(req, "mapQr");
+  const mapQrArFile = getUploadedFile(req, "mapQrAr");
+  const { removeMapQrEn, removeMapQrAr } = req.body;
 
   // Handle icon removal
   if (removeIcon === "true" && !iconFile) {
@@ -146,35 +154,58 @@ exports.updateCategory = asyncHandler(async (req, res) => {
 
   if (name) cat.name = name;
   if (metadata && typeof metadata === "object") {
-    cat.metadata = {
-      ...(cat.metadata || {}),
-      ...metadata,
-    };
+    const merged = { ...(cat.metadata || {}) };
+    for (const [key, value] of Object.entries(metadata)) {
+      if (key === "mapEmbed" && value && typeof value === "object" && merged.mapEmbed && typeof merged.mapEmbed === "object") {
+        // Deep-merge mapEmbed so existing qrImageUrlEn/qrImageUrlAr are not wiped
+        merged.mapEmbed = { ...merged.mapEmbed, ...value };
+      } else {
+        merged[key] = value;
+      }
+    }
+    cat.metadata = merged;
   }
-  
+
   if (iconFile) {
     const { fileUrl } = await uploadToS3(iconFile, STORAGE_ROOT, { inline: true });
     cat.icon = fileUrl;
   }
 
-  if (removeMapQr === "true" && !mapQrFile) {
+  // Legacy removeMapQr removes both
+  if (removeMapQr === "true") {
     cat.metadata = {
       ...(cat.metadata || {}),
-      mapEmbed: {
-        ...(cat.metadata?.mapEmbed || {}),
-        qrImageUrl: "",
-      },
+      mapEmbed: { ...(cat.metadata?.mapEmbed || {}), qrImageUrlEn: "", qrImageUrlAr: "", qrImageUrl: "" },
     };
   }
 
-  if (mapQrFile) {
-    const { fileUrl } = await uploadToS3(mapQrFile, STORAGE_ROOT, { inline: true });
+  if (removeMapQrEn === "true" && !mapQrEnFile) {
     cat.metadata = {
       ...(cat.metadata || {}),
-      mapEmbed: {
-        ...(cat.metadata?.mapEmbed || {}),
-        qrImageUrl: fileUrl,
-      },
+      mapEmbed: { ...(cat.metadata?.mapEmbed || {}), qrImageUrlEn: "" },
+    };
+  }
+
+  if (removeMapQrAr === "true" && !mapQrArFile) {
+    cat.metadata = {
+      ...(cat.metadata || {}),
+      mapEmbed: { ...(cat.metadata?.mapEmbed || {}), qrImageUrlAr: "" },
+    };
+  }
+
+  if (mapQrEnFile) {
+    const { fileUrl } = await uploadToS3(mapQrEnFile, STORAGE_ROOT, { inline: true });
+    cat.metadata = {
+      ...(cat.metadata || {}),
+      mapEmbed: { ...(cat.metadata?.mapEmbed || {}), qrImageUrlEn: fileUrl },
+    };
+  }
+
+  if (mapQrArFile) {
+    const { fileUrl } = await uploadToS3(mapQrArFile, STORAGE_ROOT, { inline: true });
+    cat.metadata = {
+      ...(cat.metadata || {}),
+      mapEmbed: { ...(cat.metadata?.mapEmbed || {}), qrImageUrlAr: fileUrl },
     };
   }
 

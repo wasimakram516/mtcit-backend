@@ -11,6 +11,8 @@ router.post(
   upload.fields([
     { name: "icon", maxCount: 1 },
     { name: "mapQr", maxCount: 1 },
+    { name: "mapQrEn", maxCount: 1 },
+    { name: "mapQrAr", maxCount: 1 },
   ]),
   categoryController.createCategory
 );
@@ -19,6 +21,8 @@ router.put(
   upload.fields([
     { name: "icon", maxCount: 1 },
     { name: "mapQr", maxCount: 1 },
+    { name: "mapQrEn", maxCount: 1 },
+    { name: "mapQrAr", maxCount: 1 },
   ]),
   categoryController.updateCategory
 );

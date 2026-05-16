@@ -75,6 +75,21 @@ const DisplayMediaSchema = new mongoose.Schema(
         y: { type: Number, default: 0 },
       },
     },
+    qr: {
+      en: {
+        type: { type: String, enum: ["image"], default: "image" },
+        url: { type: String, default: "" },
+      },
+      ar: {
+        type: { type: String, enum: ["image"], default: "image" },
+        url: { type: String, default: "" },
+      },
+      position: {
+        x: { type: Number, default: 85, min: 0, max: 100 },
+        y: { type: Number, default: 80, min: 0, max: 100 },
+      },
+      size: { type: Number, default: 10, min: 2, max: 40 },
+    },
   },
   { timestamps: true }
 );

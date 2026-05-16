@@ -53,6 +53,8 @@ const getExperienceFromCategory = (categoryDoc) => {
       config: {
         embedUrl: String(mapEmbed.embedUrl || "").trim(),
         qrImageUrl: mapEmbed.qrImageUrl || "",
+        qrImageUrlEn: mapEmbed.qrImageUrlEn || mapEmbed.qrImageUrl || "",
+        qrImageUrlAr: mapEmbed.qrImageUrlAr || "",
         qrPosition: {
           x: Math.max(0, Math.min(100, Number(mapEmbed.qrPosition?.x) || 72)),
           y: Math.max(0, Math.min(100, Number(mapEmbed.qrPosition?.y) || 74)),

@@ -286,6 +286,25 @@ exports.createDisplayMedia = asyncHandler(async (req, res) => {
     };
   }
 
+  // ── QR Codes ───────────────────────────────────────────────────────────────
+  const { qrX, qrY, qrSize } = req.body;
+  if (req.files?.qrEn?.[0] || req.files?.qrAr?.[0]) {
+    mediaObj.qr = {
+      en: { type: "image", url: "" },
+      ar: { type: "image", url: "" },
+      position: { x: Number(qrX) || 85, y: Number(qrY) || 80 },
+      size: Number(qrSize) || 10,
+    };
+    if (req.files?.qrEn?.[0]) {
+      const { fileUrl } = await uploadToS3(req.files.qrEn[0], STORAGE_ROOT, { inline: true });
+      mediaObj.qr.en.url = fileUrl;
+    }
+    if (req.files?.qrAr?.[0]) {
+      const { fileUrl } = await uploadToS3(req.files.qrAr[0], STORAGE_ROOT, { inline: true });
+      mediaObj.qr.ar.url = fileUrl;
+    }
+  }
+
   let media;
   try {
     media = await DisplayMedia.create(mediaObj);
@@ -301,7 +320,7 @@ exports.updateDisplayMedia = asyncHandler(async (req, res) => {
   const item = await DisplayMedia.findById(req.params.id);
   if (!item) return response(res, 404, "Media item not found.");
 
-  const { pinpointX, pinpointY, removePinpoint } = req.body;
+  const { pinpointX, pinpointY, removePinpoint, qrX, qrY, qrSize, removeQrEn, removeQrAr } = req.body;
 
   // ── Category path ──────────────────────────────────────────────────────────
   const rawCategoryPath = req.body.categoryPath;
@@ -364,6 +383,32 @@ exports.updateDisplayMedia = asyncHandler(async (req, res) => {
     }
   }
 
+  // ── QR Codes ───────────────────────────────────────────────────────────────
+  if (!item.qr) item.qr = { en: { type: "image", url: "" }, ar: { type: "image", url: "" }, position: { x: 85, y: 80 }, size: 10 };
+
+  if (removeQrEn === "true" && !req.files?.qrEn?.[0]) {
+    if (item.qr.en?.url) await deleteFromS3(item.qr.en.url);
+    item.qr.en = { type: "image", url: "" };
+  }
+  if (removeQrAr === "true" && !req.files?.qrAr?.[0]) {
+    if (item.qr.ar?.url) await deleteFromS3(item.qr.ar.url);
+    item.qr.ar = { type: "image", url: "" };
+  }
+  if (req.files?.qrEn?.[0]) {
+    if (item.qr.en?.url) await deleteFromS3(item.qr.en.url);
+    const { fileUrl } = await uploadToS3(req.files.qrEn[0], STORAGE_ROOT, { inline: true });
+    item.qr.en = { type: "image", url: fileUrl };
+  }
+  if (req.files?.qrAr?.[0]) {
+    if (item.qr.ar?.url) await deleteFromS3(item.qr.ar.url);
+    const { fileUrl } = await uploadToS3(req.files.qrAr[0], STORAGE_ROOT, { inline: true });
+    item.qr.ar = { type: "image", url: fileUrl };
+  }
+  if (qrX !== undefined) item.qr.position.x = Number(qrX) || 85;
+  if (qrY !== undefined) item.qr.position.y = Number(qrY) || 80;
+  if (qrSize !== undefined) item.qr.size = Math.min(40, Math.max(2, Number(qrSize) || 10));
+  item.markModified("qr");
+
   // ── Background layers ──────────────────────────────────────────────────────
   const layerMetaList = req.body.layers !== undefined ? parseJsonArray(req.body.layers) : null;
   if (layerMetaList !== null) {
@@ -425,6 +470,10 @@ exports.deleteDisplayMedia = asyncHandler(async (req, res) => {
 
   // Delete pinpoint logo if exists
   if (item.pinpoint?.file?.url) await deleteFromS3(item.pinpoint.file.url);
+
+  // Delete QR codes if exist
+  if (item.qr?.en?.url) await deleteFromS3(item.qr.en.url);
+  if (item.qr?.ar?.url) await deleteFromS3(item.qr.ar.url);
 
   // Delete background layers
   for (const layer of item.layers || []) {

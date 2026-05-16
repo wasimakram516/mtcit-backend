@@ -25,6 +25,8 @@ router.post(
     { name: "mediaLayerFiles", maxCount: 20 },
     { name: "mediaLayerFilesAr", maxCount: 20 },
     { name: "pinpoint", maxCount: 1 },
+    { name: "qrEn", maxCount: 1 },
+    { name: "qrAr", maxCount: 1 },
   ]),
   createDisplayMedia
 );
@@ -39,6 +41,8 @@ router.put(
     { name: "mediaLayerFiles", maxCount: 20 },
     { name: "mediaLayerFilesAr", maxCount: 20 },
     { name: "pinpoint", maxCount: 1 },
+    { name: "qrEn", maxCount: 1 },
+    { name: "qrAr", maxCount: 1 },
   ]),
   updateDisplayMedia
 );
