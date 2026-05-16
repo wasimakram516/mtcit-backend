@@ -29,5 +29,5 @@ module.exports = { server, io };
 
 // Start the Server
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Server running on port ${PORT}, accessible via LAN`);
+  console.log(`Server running on port ${PORT}, accessible via LAN`);
 });
