@@ -1,6 +1,7 @@
 const Category = require("../models/Category");
 const asyncHandler = require("../middlewares/asyncHandler");
 const { uploadToS3 } = require("../utils/s3Storage");
+const { refreshActiveExperience } = require("../socket/socketEvents");
 
 const STORAGE_ROOT = "mtcit/categories";
 let io = null;
@@ -225,6 +226,7 @@ exports.updateCategory = asyncHandler(async (req, res) => {
 
   await cat.save();
   await emitCategoryTree();
+  await refreshActiveExperience(cat._id);
   res.json({ success: true, data: cat });
 });
 

@@ -60,8 +60,8 @@ const getExperienceFromCategory = (categoryDoc) => {
           y: Math.max(0, Math.min(100, Number(mapEmbed.qrPosition?.y) || 74)),
         },
         qrSize: {
-          width: Math.max(6, Math.min(40, Number(mapEmbed.qrSize?.width) || 16)),
-          height: Math.max(6, Math.min(40, Number(mapEmbed.qrSize?.height) || 16)),
+          width: Math.max(5, Math.min(60, Number(mapEmbed.qrSize?.width) || 20)),
+          height: Math.max(5, Math.min(80, Number(mapEmbed.qrSize?.height) || 20)),
         },
       },
     };
@@ -88,9 +88,12 @@ const getDefaultExperienceState = (experience) => {
   return { ...base };
 };
 
+let _io = null;
+let activeExperience = null;
+let activeExperienceState = {};
+
 const socketHandler = (io) => {
-  let activeExperience = null;
-  let activeExperienceState = {};
+  _io = io;
 
   io.on("connection", async (socket) => {
     console.log(`Socket client connected: ${socket.id}`);
@@ -321,6 +324,12 @@ const socketHandler = (io) => {
       }
     });
 
+    socket.on("mapUrlSync", ({ url }) => {
+      if (activeExperience?.type !== "map-embed" || !url) return;
+      activeExperience = { ...activeExperience, config: { ...activeExperience.config, embedUrl: String(url).trim() } };
+      io.emit("displayExperience", activeExperience);
+    });
+
     socket.on("updateExperienceState", ({ type, state }) => {
       if (!activeExperience || type !== activeExperience.type || !state || typeof state !== "object") {
         return;
@@ -345,4 +354,15 @@ const socketHandler = (io) => {
   });
 };
 
+const refreshActiveExperience = async (categoryId) => {
+  if (!_io || !activeExperience || String(activeExperience.categoryId) !== String(categoryId)) return;
+  const categoryDoc = await Category.findById(categoryId).lean();
+  if (!categoryDoc) return;
+  const updated = getExperienceFromCategory(categoryDoc);
+  if (!updated) return;
+  activeExperience = updated;
+  _io.emit("displayExperience", activeExperience);
+};
+
 module.exports = socketHandler;
+module.exports.refreshActiveExperience = refreshActiveExperience;
